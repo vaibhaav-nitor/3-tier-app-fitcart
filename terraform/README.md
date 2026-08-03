@@ -68,8 +68,7 @@ The name carries a random suffix, so it cannot be committed ahead of time.
 az ad sp create-for-rbac \
   --name sp-fitcart-github \
   --role Owner \
-  --scopes /subscriptions/<subscription-id> \
-  --sdk-auth
+  --scopes /subscriptions/<subscription-id>
 ```
 
 **`Owner`, not `Contributor`.** The SP creates role assignments — `AcrPull` for
@@ -77,8 +76,18 @@ the cluster and `Key Vault Secrets Officer` for itself — and `Contributor` can
 create role assignments. On a shared subscription use `Contributor` plus
 `User Access Administrator` instead.
 
-Save the whole JSON blob as the GitHub secret `AZURE_CREDENTIALS`
-(*Settings → Secrets and variables → Actions → Secrets*).
+The command prints `appId`, `password` and `tenant`. Save them as four GitHub
+**secrets** (*Settings → Secrets and variables → Actions → Secrets*):
+
+| Secret | Value |
+|---|---|
+| `AZURE_CLIENT_ID` | `appId` from the output |
+| `AZURE_CLIENT_SECRET` | `password` from the output |
+| `AZURE_TENANT_ID` | `tenant` from the output |
+| `AZURE_SUBSCRIPTION_ID` | your subscription ID |
+
+`password` is shown once and cannot be retrieved later — copy it now. If you lose
+it, reset with `az ad sp credential reset --id <appId>`.
 
 ### 4. Provision
 
@@ -106,7 +115,10 @@ variables → Actions → Variables*) — the deploy workflows read them from `v
 - `AZURE_RESOURCE_GROUP`
 - `KEY_VAULT_NAME`
 
-These are not secrets; only `AZURE_CREDENTIALS` is.
+These are **variables**, not secrets — the four `AZURE_*` values above are the
+only secrets. Getting the two categories mixed up is the most common setup
+mistake: `vars.ACR_NAME` reads empty if you saved it as a secret, and `az acr
+login` then fails with an unhelpful error.
 
 ## Deploying the application
 
@@ -148,5 +160,5 @@ you are finished with the project entirely.
 - All names derive from `var.project` and `var.environment`, so nothing is
   hardcoded to `fitcart` or `dev`.
 - `subscription_id` is never committed. Locally pass `-var`, in CI it comes from
-  `TF_VAR_subscription_id`, unpacked from `AZURE_CREDENTIALS`.
+  `TF_VAR_subscription_id`, set from the `AZURE_SUBSCRIPTION_ID` secret.
 - Run `terraform fmt -recursive` before committing — CI fails on unformatted files.

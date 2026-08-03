@@ -25,6 +25,16 @@ env:
   TF_WORKING_DIR: terraform/envs/dev
   TF_VAR_FILE: dev.tfvars
 
+  # The azurerm provider and the state backend read these directly, so no
+  # unpacking step is needed — they map one-to-one onto the repository secrets.
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+  # Satisfies var.subscription_id without committing it to dev.tfvars.
+  TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
 jobs:
   terraform:
     name: ${{ github.event_name == 'pull_request' && 'plan' || inputs.action }}
@@ -44,24 +54,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Azure login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      # The azurerm provider and the state backend read ARM_* directly. They are
-      # unpacked from the same AZURE_CREDENTIALS JSON that azure/login consumes.
-      - name: Export ARM credentials
-        run: |
-          set -euo pipefail
-          creds='${{ secrets.AZURE_CREDENTIALS }}'
-          {
-            echo "ARM_CLIENT_ID=$(jq -r .clientId <<< "$creds")"
-            echo "ARM_CLIENT_SECRET=$(jq -r .clientSecret <<< "$creds")"
-            echo "ARM_SUBSCRIPTION_ID=$(jq -r .subscriptionId <<< "$creds")"
-            echo "ARM_TENANT_ID=$(jq -r .tenantId <<< "$creds")"
-            echo "TF_VAR_subscription_id=$(jq -r .subscriptionId <<< "$creds")"
-          } >> "$GITHUB_ENV"
+      # No azure/login step here: this workflow never invokes the az CLI, and
+      # Terraform authenticates to Azure with the ARM_* variables set above.
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
