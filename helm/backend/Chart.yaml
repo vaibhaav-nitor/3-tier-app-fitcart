@@ -1,0 +1,6 @@
+apiVersion: v2
+name: fitcart-backend
+description: Spring Boot REST API tier for FitCart
+type: application
+version: 0.1.0
+appVersion: "0.0.2"

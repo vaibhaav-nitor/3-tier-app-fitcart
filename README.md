@@ -1,73 +1,92 @@
-# 🚀 CI/CD Deployment of a 3-Tier Application to Azure Kubernetes with GitHub Actions, Helm and Terraform
+# 🚀 FitCart — 3-Tier Application on Azure Kubernetes Service
 
-This project demonstrates a complete DevOps and GitOps pipeline that automates the build, deployment, and delivery of a cloud-native 3-tier application to Azure Kubernetes Service (AKS). It leverages industry-standard tools like GitHub Actions, Argo CD, Terraform, Helm, and Docker — integrated to deliver an end-to-end, production-grade workflow.
+A 3-tier application deployed to Azure Kubernetes Service, with the Azure
+infrastructure defined in Terraform and delivery driven by GitHub Actions and
+Helm. Built as a testing environment: the footprint is deliberately small and
+simple rather than production-hardened.
 
 ---
 
 ## 📌 Overview
 
-The system is built around a modern microservices-style 3-tier architecture:
+- **Frontend** — Vite/React SPA served by nginx, which also proxies `/api/` to the backend
+- **Backend** — Spring Boot 3.2 REST API on Java 21
+- **Database** — PostgreSQL running in-cluster on a `managed-csi` persistent volume
 
-- **Frontend**: A Vite-based React.js web client
-- **Backend**: A Spring Boot REST API
-- **Database**: PostgreSQL running inside the AKS cluster
-
-Each tier is containerized with Docker and deployed into a Kubernetes environment orchestrated by AKS. The system is designed to be modular, reproducible, and secure.
-
----
-
-## 🔧 What This Project Covers
-
-- ✅ **Infrastructure as Code** with Terraform to provision all Azure resources including:
-  - Azure Kubernetes Service (AKS)
-  - Azure Key Vault
-  - Azure AD Service Principal
-
-- ✅ **Continuous Integration (CI)** using GitHub Actions:
-  - Separate workflows for `frontend/` and `backend/` directories
-  - Builds Docker images
-  - Pushes to Docker Hub
-  - Updates Helm chart with new image tags
-
-- ✅ **Continuous Delivery (CD)** using Argo CD:
-  - Watches GitHub for changes to Helm chart
-  - Automatically syncs and deploys to AKS
-  - Self-healing and declarative application state
-
-- ✅ **Security**:
-  - Sensitive values managed in Azure Key Vault
-  - No hardcoded credentials
-  - Controlled RBAC for secrets access
+Each tier is a separate container image, a separate Helm release, and a separate
+CI/CD workflow, so a change to one deploys only that one.
 
 ---
 
-## 📐 Pipeline architecture
+## 🗂️ Repository layout
 
-![Pipeline Architecture](./architecture.png)
-
-The architecture follows a GitOps model where the Git repository is the source of truth. Any change to manifests, configurations, or image tags triggers automatic deployment via Argo CD in the cluster.
+| Path | What it is |
+|---|---|
+| [frontend/](./frontend) | React source, `Dockerfile`, `nginx.conf` |
+| [backend/](./backend) | Spring Boot source, `Dockerfile`, `pom.xml` |
+| [terraform/](./terraform) | Azure infrastructure — see [terraform/README.md](./terraform/README.md) |
+| [helm/backend/](./helm/backend) | Backend chart and its `values.yaml` |
+| [helm/frontend/](./helm/frontend) | Frontend chart and its `values.yaml` |
+| [helm/database/](./helm/database) | PostgreSQL chart and its `values.yaml` |
+| [.github/workflows/](./.github/workflows) | Terraform, backend, frontend and database pipelines |
+| [k8s-manifest/](./k8s-manifest) | Raw manifests, kept as reference — not used by the pipelines |
 
 ---
 
-## 🔨 Infrastructure Setup (Terraform)
+## ☁️ Infrastructure (Terraform)
 
-The infrastructure is fully defined using Terraform and follows a modular structure. The modules include:
+Modular Terraform provisions, in order: resource group → VNet → ACR → Key Vault →
+AKS joined to the VNet subnet, plus the `AcrPull` role assignment that lets the
+cluster pull images with no `imagePullSecrets`.
 
-- `aks/` for creating the Kubernetes cluster
-- `keyvault/` for managing secrets
-- `service-principal/` to provision an identity with the required roles
+State lives in an Azure Storage backend created by a one-time `terraform/bootstrap`
+run. Full setup instructions — service principal, GitHub secrets, teardown — are
+in **[terraform/README.md](./terraform/README.md)**.
 
-Terraform manages provisioning of the Azure resources. You pass in values such as resource group, location, VM size, and Key Vault name via `terraform.tfvars`.
+---
 
-You’ll need:
-- An Azure subscription
-- Azure CLI installed and authenticated
-- SSH key pair for connecting to nodes (even though we don’t log in directly)
+## 🔄 CI/CD
 
-Once configured, the usual flow is:
+Four GitHub Actions workflows:
 
-```bash
-terraform init
-terraform plan
-terraform apply   
+| Workflow | Trigger | Does |
+|---|---|---|
+| `terraform.yml` | manual (`plan`/`apply`/`destroy`), plan on PRs | Provisions Azure |
+| `database-deploy.yml` | `helm/database/**`, manual | Deploys PostgreSQL |
+| `backend-ci-cd.yml` | `backend/**`, `helm/backend/**` | Builds → ACR → deploys |
+| `frontend-ci-cd.yml` | `frontend/**`, `helm/frontend/**` | Builds → ACR → deploys |
 
+Each application workflow builds its image, scans it with Trivy (report-only),
+pushes it to Azure Container Registry tagged with the commit SHA, then runs
+`helm upgrade --install` against the cluster.
+
+Deploy the database first on a fresh cluster — the backend cannot start without it.
+
+---
+
+## 🔐 Security posture
+
+- Images are pulled via the cluster's managed identity holding `AcrPull` — no registry credentials in Kubernetes
+- The Postgres password is generated by Terraform, stored in Azure Key Vault, and read by the deploy workflows at run time — it is not in Git and not a GitHub secret
+- `AZURE_CREDENTIALS` is the only GitHub secret; cluster and registry names are plain repository variables
+
+This is a test environment. The API server, registry and vault are all reachable
+over public endpoints — private endpoints and network restrictions were
+deliberately left out. See *Not included* below.
+
+---
+
+## 🚦 Getting started
+
+1. Follow [terraform/README.md](./terraform/README.md) to bootstrap state, create the service principal, and `apply` the infrastructure
+2. Publish the Terraform outputs as GitHub repository variables
+3. Run **Database — Deploy**, then **Backend**, then **Frontend**
+4. `kubectl get svc frontend -n fitcart` gives the public IP
+
+---
+
+## 🧭 Not included
+
+App Service deployment (planned next, reusing the same VNet, ACR and Key Vault),
+Azure Database for PostgreSQL, private endpoints, ingress + TLS, Argo CD, and
+monitoring.

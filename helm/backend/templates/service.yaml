@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  # Fixed name, NOT derived from the release name: frontend/nginx.conf contains
+  # `proxy_pass http://backend:8080`. Renaming this breaks the frontend's /api/ route.
+  name: {{ .Values.serviceName }}
+  labels:
+    app: backend
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app: backend
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.containerPort }}

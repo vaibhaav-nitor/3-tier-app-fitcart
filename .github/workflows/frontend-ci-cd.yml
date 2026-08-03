@@ -1,0 +1,147 @@
+name: Frontend — Build & Deploy
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "frontend/**"
+      - "helm/frontend/**"
+      - ".github/workflows/frontend-ci-cd.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Repository variables, taken from `terraform output workflow_env`.
+  ACR_NAME: ${{ vars.ACR_NAME }}
+  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+  AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
+  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+  IMAGE_NAME: fitcart-frontend
+  K8S_NAMESPACE: fitcart
+  HELM_RELEASE: fitcart-frontend
+
+jobs:
+  build:
+    name: Build & push image
+    runs-on: ubuntu-latest
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: meta
+        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR login
+        run: az acr login --name "$ACR_NAME"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: ./frontend
+          severity: HIGH,CRITICAL
+          # Report-only: a test app should not be blocked by base-image CVEs.
+          exit-code: "0"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
+          severity: HIGH,CRITICAL
+          exit-code: "0"
+
+  deploy:
+    name: Deploy to AKS
+    runs-on: ubuntu-latest
+    needs: build
+
+    # Literal string: the `env` context is not available in `concurrency`.
+    concurrency:
+      group: deploy-frontend-fitcart
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AKS_CLUSTER_NAME" \
+            --overwrite-existing
+
+      # No Key Vault step here — the frontend holds no credentials.
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Helm lint
+        run: helm lint ./helm/frontend
+
+      - name: Helm upgrade
+        run: |
+          helm upgrade --install "$HELM_RELEASE" ./helm/frontend \
+            --namespace "$K8S_NAMESPACE" \
+            --create-namespace \
+            --wait \
+            --timeout 10m \
+            --set image.repository="${ACR_LOGIN_SERVER}/${IMAGE_NAME}" \
+            --set image.tag="${{ needs.build.outputs.image_tag }}"
+
+      - name: Report application URL
+        if: always()
+        run: |
+          # The LoadBalancer IP can take a moment to be assigned after the first
+          # install, so wait for it rather than reporting an empty value.
+          ip=$(kubectl get svc frontend -n "$K8S_NAMESPACE" \
+            -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+          for _ in $(seq 1 12); do
+            [ -n "$ip" ] && break
+            sleep 10
+            ip=$(kubectl get svc frontend -n "$K8S_NAMESPACE" \
+              -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+          done
+          {
+            echo "### Frontend deploy"
+            echo ""
+            echo "Image tag: \`${{ needs.build.outputs.image_tag }}\`"
+            echo ""
+            if [ -n "$ip" ]; then
+              echo "Application URL: http://$ip"
+            else
+              echo "LoadBalancer IP not assigned yet — check \`kubectl get svc frontend -n $K8S_NAMESPACE\`."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

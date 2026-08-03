@@ -1,0 +1,28 @@
+replicaCount: 1
+
+image:
+  # Overwritten at deploy time with the ACR login server, e.g.
+  # acrfitcartdev123456.azurecr.io/fitcart-frontend
+  repository: fitcart-frontend
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Fixed Service name, kept for symmetry with the backend chart and because the
+# backend's FRONTEND_ORIGIN CORS value points at http://frontend:80.
+serviceName: frontend
+
+service:
+  # LoadBalancer gives the cluster a public IP — this is the app's entry point.
+  type: LoadBalancer
+  port: 80
+
+# Matches EXPOSE 80 in frontend/Dockerfile.
+containerPort: 80
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi

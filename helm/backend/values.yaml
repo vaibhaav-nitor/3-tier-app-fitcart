@@ -1,0 +1,40 @@
+replicaCount: 1
+
+image:
+  # Overwritten at deploy time with the ACR login server, e.g.
+  # acrfitcartdev123456.azurecr.io/fitcart-backend
+  repository: fitcart-backend
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Fixed Service name. frontend/nginx.conf proxies /api/ to http://backend:8080,
+# so this must not be templated off the release name.
+serviceName: backend
+
+service:
+  type: ClusterIP
+  port: 8080
+
+# Matches EXPOSE 8080 in backend/Dockerfile.
+containerPort: 8080
+
+db:
+  # Service name published by the fitcart-database release.
+  host: postgres
+  port: 5432
+  name: backenddb
+  # Empty by design. Injected at deploy time from Azure Key Vault (secrets
+  # `postgres-user` / `postgres-password`). Never commit real values here.
+  user: ""
+  password: ""
+
+# Consumed by cors.allowed-origin in backend/src/main/resources/application.yml.
+frontendOrigin: http://frontend:80
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
