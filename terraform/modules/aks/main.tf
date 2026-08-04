@@ -43,10 +43,8 @@ resource "azurerm_kubernetes_cluster" "this" {
 
   tags = var.tags
 
-  lifecycle {
-    ignore_changes = [
-      # The cluster autoscaler or manual scaling changes this outside Terraform.
-      default_node_pool[0].node_count,
-    ]
-  }
+  # No ignore_changes on node_count. That guard only earns its keep when the
+  # cluster autoscaler owns the count, and no autoscaler is configured here.
+  # Leaving it in would silently discard changes to var.node_count, which is
+  # exactly the value that has to move when vCPU quota changes.
 }
