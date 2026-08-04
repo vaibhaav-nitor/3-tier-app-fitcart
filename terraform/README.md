@@ -48,6 +48,18 @@ source rather than own it. Two consequences worth knowing:
 To have Terraform create and own a group instead, set `create_resource_group = true`
 and give `resource_group_name` a new name. `destroy` would then delete it.
 
+### It is a shared group
+
+`AZET-RG-Daas-Platform` is the organisation's standard working group and already
+contains other people's resources, including at least two other AKS clusters.
+Two rules follow:
+
+- **Never delete the group**, and never `destroy` anything you did not create.
+  This configuration only touches resources it provisioned itself.
+- **Names must not collide.** Everything here is prefixed `fitcart-dev`
+  (`vnet-fitcart-dev`, `aks-fitcart-dev`), and ACR and Key Vault carry a random
+  suffix on top. Change `project` or `environment` in tfvars if that ever clashes.
+
 ### One resource group Terraform cannot control
 
 AKS **always** creates a second resource group for its node infrastructure — the
@@ -55,10 +67,10 @@ VM scale set, node disks, and the load balancer that fronts the frontend Service
 Azure does not allow those to live in the cluster's own resource group; there is
 no setting that changes this.
 
-All this configuration can do is name it, via `aks_node_resource_group_name`
-(default `AZET-RG-Daas-Platform-aks-nodes`). Left unset, Azure generates
-`MC_AZET-RG-Daas-Platform_aks-fitcart-dev_<region>`. It is deleted automatically
-when the cluster is deleted, so it needs no separate cleanup.
+`aks_node_resource_group_name` is left `null` so Azure generates
+`MC_AZET-RG-Daas-Platform_aks-fitcart-dev_eastus`, matching the convention the
+existing clusters in this group already follow. It is deleted automatically with
+the cluster, so it needs no separate cleanup.
 
 ### Why ACR is not inside the VNet
 

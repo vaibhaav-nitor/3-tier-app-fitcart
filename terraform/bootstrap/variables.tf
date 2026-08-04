@@ -29,7 +29,7 @@ variable "create_resource_group" {
 variable "location" {
   description = "Azure region. Only used when create_resource_group is true; otherwise the existing group's region is used."
   type        = string
-  default     = "centralindia"
+  default     = "eastus"
 }
 
 variable "tags" {

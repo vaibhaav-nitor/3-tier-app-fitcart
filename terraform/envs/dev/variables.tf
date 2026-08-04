@@ -38,9 +38,9 @@ variable "create_resource_group" {
 }
 
 variable "location" {
-  description = "Azure region. Only used when create_resource_group is true; otherwise resources follow the existing group's region."
+  description = "Azure region. Only used when create_resource_group is true; otherwise resources follow the existing group's region, which for AZET-RG-Daas-Platform is East US."
   type        = string
-  default     = "centralindia"
+  default     = "eastus"
 }
 
 variable "vnet_address_space" {
@@ -62,9 +62,9 @@ variable "acr_sku" {
 }
 
 variable "aks_node_resource_group_name" {
-  description = "Name for the second, Azure-managed group AKS creates for node infrastructure. AKS cannot place these in the cluster's own resource group. Null accepts the generated MC_* name."
+  description = "Name for the second, Azure-managed group AKS creates for node infrastructure. Null accepts Azure's generated MC_<rg>_<cluster>_<region> name, which matches the convention already used by the other clusters in this resource group."
   type        = string
-  default     = "AZET-RG-Daas-Platform-aks-nodes"
+  default     = null
 }
 
 variable "kubernetes_version" {

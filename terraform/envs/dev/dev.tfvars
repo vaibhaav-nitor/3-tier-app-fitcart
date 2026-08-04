@@ -8,8 +8,10 @@ resource_group_name   = "AZET-RG-Daas-Platform"
 create_resource_group = false
 
 # AKS mandates a second group for its node infrastructure (VMSS, node disks,
-# load balancer). It cannot share the group above — this only controls its name.
-aks_node_resource_group_name = "AZET-RG-Daas-Platform-aks-nodes"
+# load balancer). It cannot share the group above. Left unset so Azure generates
+# MC_AZET-RG-Daas-Platform_aks-fitcart-dev_eastus, matching the naming the other
+# clusters in this group already use.
+# aks_node_resource_group_name = null
 
 vnet_address_space = ["10.0.0.0/16"]
 aks_subnet_prefix  = "10.0.1.0/24"
