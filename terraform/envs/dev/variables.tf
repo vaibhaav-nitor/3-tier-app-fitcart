@@ -80,9 +80,9 @@ variable "aks_sku_tier" {
 }
 
 variable "node_vm_size" {
-  description = "VM size for AKS nodes."
+  description = "VM size for AKS nodes. The B-series is blocked by SKU policy in this subscription, and the permitted b*ps_v2 variants are ARM64, which the amd64 images cannot run on."
   type        = string
-  default     = "Standard_B2s"
+  default     = "Standard_D2s_v3"
 }
 
 variable "node_count" {

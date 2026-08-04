@@ -24,7 +24,15 @@ aks_subnet_prefix  = "10.50.1.0/24"
 acr_sku = "Basic"
 
 aks_sku_tier = "Free"
-node_vm_size = "Standard_B2s"
+
+# This subscription restricts which VM SKUs may be used, and the B-series is not
+# permitted in eastus. D2s_v3 (2 vCPU, 8 GB) is on the allow-list and supports
+# premium storage, which the managed-csi PVC wants.
+#
+# Do NOT switch to the allowed standard_b2ps_v2 / standard_b2pls_v2 to save cost:
+# the "p" denotes ARM64, and the images are built amd64 on GitHub runners, so
+# every pod would fail with "exec format error".
+node_vm_size = "Standard_D2s_v3"
 node_count   = 2
 
 postgres_user = "fitcart"
