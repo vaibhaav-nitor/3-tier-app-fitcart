@@ -47,9 +47,9 @@ variable "sku_tier" {
 }
 
 variable "node_vm_size" {
-  description = "VM size for the node pool."
+  description = "VM size for the node pool. Must be x86_64 unless the images are cross-built, and must be on the subscription's allowed-SKU list if one is enforced."
   type        = string
-  default     = "Standard_B2s"
+  default     = "Standard_D2s_v3"
 }
 
 variable "node_count" {
