@@ -1,0 +1,91 @@
+name: Database — Deploy
+
+# Deliberately separate from the application workflows: this release owns a
+# PersistentVolumeClaim, and a frontend or backend push should never touch it.
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "helm/database/**"
+      - ".github/workflows/database-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
+  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+  KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+  K8S_NAMESPACE: fitcart
+  HELM_RELEASE: fitcart-database
+
+jobs:
+  deploy:
+    name: Deploy PostgreSQL to AKS
+    runs-on: ubuntu-latest
+
+    # Literal string: the `env` context is not available in `concurrency`.
+    concurrency:
+      group: deploy-database-fitcart
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # azure/login takes the service principal as a JSON blob, assembled here
+      # from the four discrete repository secrets.
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}"}'
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AKS_CLUSTER_NAME" \
+            --overwrite-existing
+
+      # Same two vault entries the backend reads. If these ever diverge the
+      # backend fails JDBC authentication, so both workflows read the same names.
+      - name: Read database credentials from Key Vault
+        run: |
+          set -euo pipefail
+          db_user=$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name postgres-user --query value -o tsv)
+          db_password=$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name postgres-password --query value -o tsv)
+          echo "::add-mask::$db_user"
+          echo "::add-mask::$db_password"
+          echo "DB_USER=$db_user" >> "$GITHUB_ENV"
+          echo "DB_PASSWORD=$db_password" >> "$GITHUB_ENV"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Helm lint
+        run: |
+          helm lint ./helm/database \
+            --set auth.username=placeholder \
+            --set auth.password=placeholder
+
+      - name: Helm upgrade
+        run: |
+          helm upgrade --install "$HELM_RELEASE" ./helm/database \
+            --namespace "$K8S_NAMESPACE" \
+            --create-namespace \
+            --wait \
+            --timeout 10m \
+            --set auth.username="$DB_USER" \
+            --set auth.password="$DB_PASSWORD"
+
+      - name: Rollout summary
+        if: always()
+        run: |
+          {
+            echo "### Database deploy"
+            echo ""
+            echo '```'
+            kubectl get pods,pvc -n "$K8S_NAMESPACE" -l app=postgres || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

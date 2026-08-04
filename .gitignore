@@ -79,14 +79,26 @@ Thumbs.db
 
 crash.log
 
-# Ignore Terraform state files and cache inside the infrastructure folder
-infrastructure/.terraform/
-infrastructure/terraform.tfstate
-infrastructure/terraform.tfstate.backup
-infrastructure/.terraform.lock.hcl
-infrastructure/kubeconfig
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
 
-# Optional: Ignore any plan or crash files
-infrastructure/*.tfplan
-infrastructure/crash.log
+# tfvars may carry subscription IDs or credentials. envs/*/dev.tfvars is
+# deliberately committed (it holds only sizing and naming) — see the negation below.
+*.tfvars
+*.tfvars.json
+!terraform/envs/*/dev.tfvars
+
+# Kubeconfigs fetched by `az aks get-credentials`
+kubeconfig
+*.kubeconfig
 

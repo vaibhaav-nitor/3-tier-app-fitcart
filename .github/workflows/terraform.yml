@@ -1,0 +1,115 @@
+name: Terraform — Azure Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Terraform action to run"
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+  pull_request:
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform.yml"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  TF_WORKING_DIR: terraform/envs/dev
+  TF_VAR_FILE: dev.tfvars
+
+  # The azurerm provider and the state backend read these directly, so no
+  # unpacking step is needed — they map one-to-one onto the repository secrets.
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+  # Satisfies var.subscription_id without committing it to dev.tfvars.
+  TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  terraform:
+    name: ${{ github.event_name == 'pull_request' && 'plan' || inputs.action }}
+    runs-on: ubuntu-latest
+
+    # Serialise infrastructure runs. Two concurrent applies against the same
+    # remote state would fight over the blob lease.
+    concurrency:
+      group: terraform-dev
+      cancel-in-progress: false
+
+    defaults:
+      run:
+        working-directory: terraform/envs/dev
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # No azure/login step here: this workflow never invokes the az CLI, and
+      # Terraform authenticates to Azure with the ARM_* variables set above.
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+          # Must stay true: the PR-comment step reads steps.plan.outputs.stdout,
+          # which only exists when the wrapper script captures it.
+          terraform_wrapper: true
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive ../..
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        run: terraform validate -no-color
+
+      - name: Terraform plan
+        if: inputs.action != 'destroy'
+        id: plan
+        run: terraform plan -input=false -no-color -var-file="$TF_VAR_FILE" -out=tfplan
+
+      - name: Comment plan on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          PLAN: ${{ steps.plan.outputs.stdout }}
+        with:
+          script: |
+            const plan = (process.env.PLAN || '').slice(0, 60000);
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `#### Terraform plan (\`dev\`)\n\n<details><summary>Show plan</summary>\n\n\`\`\`terraform\n${plan}\n\`\`\`\n\n</details>`,
+            });
+
+      # Applies the saved plan file, so what was reviewed is exactly what runs.
+      - name: Terraform apply
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'apply'
+        run: terraform apply -input=false -auto-approve tfplan
+
+      - name: Terraform destroy
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
+        run: terraform destroy -input=false -auto-approve -var-file="$TF_VAR_FILE"
+
+      # These are the values to paste into the deploy workflows' env: blocks.
+      - name: Show outputs
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'apply'
+        run: |
+          {
+            echo "### Terraform outputs"
+            echo '```json'
+            terraform output -json workflow_env
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
