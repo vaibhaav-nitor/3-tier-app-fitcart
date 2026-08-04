@@ -27,7 +27,7 @@ containerPort: 80
 
 runtimeConfig:
   # Default for local rendering. CI overwrites it from Azure Key Vault secret
-  # `fitcart-hero-highlight-text`.
+  # `version-v1`.
   heroHighlightText: "Progress."
 
 resources:
