@@ -38,11 +38,19 @@ create_key_vault_role_assignment = false
 #   3. No grant possible     → create_acr_role_assignment = false, use_image_pull_secret = true
 #
 # Setup 2 covers running `az role assignment create` yourself after apply, if
-# your own account holds rights the service principal does not. Setup 3 is the
-# POC fallback: it enables the ACR admin user and the deploy workflows create a
-# docker-registry secret from it. Some subscriptions deny admin by Azure Policy.
-create_acr_role_assignment = true
-use_image_pull_secret      = false
+# your own account holds rights the service principal does not.
+#
+# This environment is on setup 3: both the service principal and the operator
+# hold Contributor only, at resource group and subscription scope, so no route
+# to a role assignment exists. The ACR admin user is enabled and the deploy
+# workflows build a docker-registry secret from it.
+#
+# Revisit once someone grants RBAC Administrator on the resource group: set
+# create_acr_role_assignment = true and use_image_pull_secret = false, re-apply,
+# then `kubectl delete secret acr-pull-secret -n fitcart`. The workflows detect
+# the change on their own.
+create_acr_role_assignment = false
+use_image_pull_secret      = true
 
 tags = {
   owner   = "platform"

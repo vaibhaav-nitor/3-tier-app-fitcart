@@ -149,17 +149,49 @@ az role assignment create \
 `User Access Administrator` — it permits managing role assignments and nothing
 else — so it is usually the easier approval to obtain.
 
-Where that grant is impossible, set `create_acr_role_assignment = false` in
-tfvars and switch the charts to ACR admin credentials plus an `imagePullSecret`.
-That works with plain Contributor, at the cost of a static registry password
-living in the cluster.
+#### How this environment is configured
 
-Two toggles in [envs/dev/dev.tfvars](envs/dev/dev.tfvars) control this:
+Neither the service principal nor the operator holds more than `Contributor`, so
+no role assignment can be created by any route. The configuration therefore runs
+on the fallback: the ACR admin user is enabled, and the deploy workflows create a
+`docker-registry` secret from it that the backend and frontend charts reference.
 
-- `create_key_vault_role_assignment` — leave `false` when the principal already
-  holds `Key Vault Secrets Officer` at subscription scope, as this one does.
-  Re-granting it on the vault would be redundant *and* would fail.
-- `create_acr_role_assignment` — `true` once the grant above is in place.
+Three toggles in [envs/dev/dev.tfvars](envs/dev/dev.tfvars):
+
+| Toggle | Value | Why |
+|---|---|---|
+| `create_key_vault_role_assignment` | `false` | the principal already holds Key Vault Secrets Officer at subscription scope; re-granting is redundant and would fail |
+| `create_acr_role_assignment` | `false` | Contributor cannot create it |
+| `use_image_pull_secret` | `true` | enables ACR admin so the cluster can still pull |
+
+**This is a deliberate POC trade-off**, not the intended end state. A shared
+registry password ends up stored in the cluster, and ACR admin is on. Once
+someone grants `Role Based Access Control Administrator` on the resource group,
+switch to `create_acr_role_assignment = true` and `use_image_pull_secret = false`,
+re-apply, and delete the now-unused secret:
+
+```bash
+kubectl delete secret acr-pull-secret -n fitcart
+```
+
+The workflows detect which mode is active by querying `adminUserEnabled` on the
+registry, so no workflow change is needed either way.
+
+#### If Azure Policy blocks the ACR admin user
+
+Governed subscriptions sometimes deny it. Check before running a full apply —
+this costs about thirty seconds:
+
+```bash
+az acr create --name acrpolicytest$RANDOM --resource-group AZET-RG-Daas-Platform \
+  --sku Basic --admin-enabled true
+# succeeded? policy allows it. Delete the test registry:
+az acr delete --name <that-name> --resource-group AZET-RG-Daas-Platform --yes
+```
+
+A policy denial there means neither the role assignment nor the admin user is
+available, and the remaining options are to push images to GitHub Container
+Registry instead, or to obtain the RBAC grant after all.
 
 #### Credentials
 
