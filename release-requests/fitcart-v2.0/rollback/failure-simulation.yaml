@@ -1,0 +1,43 @@
+apiVersion: adaas.poc/v1
+kind: FailureSimulation
+metadata:
+  name: fitcart-v2-missing-smtp-password
+spec:
+  purpose: Demonstrate automatic failure detection and rollback.
+  trigger:
+    type: missing-secret
+    secretName: smtp-password
+    target: Azure Key Vault
+    timing: before-backend-rollout
+
+  expectedDetection:
+    status: Deployment Failed
+    reason: SMTP password missing in Key Vault.
+    affectedService: notification-service
+    affectedWorkload: deployment/backend
+    risk: Medium
+
+  expectedAssistantAnswer:
+    question: Why did deployment fail?
+    answer: Deployment stopped because smtp-password was not found in Key Vault. The Notification Service cannot start without this secret. Create the missing secret and retry deployment, or keep notifications disabled.
+
+  rollbackPlan:
+    - pause-canary
+    - do-not-promote-traffic
+    - rollback-backend-helm-release
+    - restore-previous-backend-config
+    - restore-previous-backend-secret-state
+    - restore-database-from-backup-if-migration-started
+    - validate-v1-backend-health
+    - validate-v1-frontend-health
+
+  simulatedLog:
+    - "Running prerequisite validation..."
+    - "Checking Key Vault secret: smtp-username... Found"
+    - "Checking Key Vault secret: smtp-password... Missing"
+    - "Deployment Failed: required secret smtp-password not found"
+    - "Rollback started"
+    - "Restoring backend Helm revision"
+    - "Restoring configuration snapshot"
+    - "Validating FitCart v1 health"
+    - "Rollback completed"

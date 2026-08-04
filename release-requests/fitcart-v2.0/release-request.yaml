@@ -1,0 +1,265 @@
+apiVersion: adaas.poc/v1
+kind: ReleaseRequest
+metadata:
+  requestId: fitcart-v2-2026-08-04
+  application: fitcart
+  releaseName: FitCart v2.0
+  submittedBy: platform-demo
+  submittedAt: "2026-08-04T00:00:00+05:30"
+spec:
+  environment:
+    cloud: azure
+    resourceGroup: AZET-RG-Daas-Platform
+    clusterName: aks-fitcart-dev
+    namespace: fitcart
+    terraformRoot: terraform/envs/dev
+    helmCharts:
+      frontend: helm/frontend
+      backend: helm/backend
+      database: helm/database
+
+  source:
+    type: repository-folder
+    repoPath: "D:\\Daas-repo\\3-tier-app-fitcart-1"
+    packagePath: release-requests/fitcart-v2.0
+    version: "2.0.0"
+    targetImageTags:
+      frontend: "fitcart-frontend:v2.0.0"
+      backend: "fitcart-backend:v2.0.0"
+
+  baselineDiscoveryHints:
+    kubernetes:
+      namespace: fitcart
+      workloads:
+        - deployment/frontend
+        - deployment/backend
+        - deployment/postgres
+      services:
+        - service/frontend
+        - service/backend
+        - service/postgres
+      configMaps:
+        - backend-config
+      secrets:
+        - backend-secrets
+        - postgres-secret
+        - acr-pull-secret
+    azure:
+      keyVaultSecretNames:
+        - postgres-user
+        - postgres-password
+      terraformExpectedResources:
+        - azurerm_resource_group
+        - azurerm_virtual_network
+        - azurerm_subnet
+        - azurerm_container_registry
+        - azurerm_key_vault
+        - azurerm_kubernetes_cluster
+
+  targetChanges:
+    application:
+      fromVersion: "1.x"
+      toVersion: "2.0.0"
+      summary:
+        - Add FitCart workout goal and member profile fields.
+        - Add audit logging switch for record mutations.
+        - Add notification settings for workout reminders.
+        - Add member photo upload metadata.
+
+    helm:
+      frontend:
+        replicaCount:
+          from: 1
+          to: 2
+        image:
+          tag:
+            from: latest
+            to: v2.0.0
+        resources:
+          requests:
+            cpu:
+              from: 50m
+              to: 100m
+            memory:
+              from: 64Mi
+              to: 128Mi
+          limits:
+            cpu:
+              from: 200m
+              to: 500m
+            memory:
+              from: 128Mi
+              to: 256Mi
+
+      backend:
+        replicaCount:
+          from: 1
+          to: 2
+        image:
+          tag:
+            from: latest
+            to: v2.0.0
+        resources:
+          requests:
+            cpu:
+              from: 200m
+              to: 300m
+            memory:
+              from: 512Mi
+              to: 768Mi
+          limits:
+            cpu:
+              from: 1000m
+              to: 1500m
+            memory:
+              from: 1Gi
+              to: 1536Mi
+
+    configuration:
+      added:
+        ENABLE_AUDIT: "true"
+        NOTIFICATION_ENABLED: "true"
+        EMAIL_PROVIDER: smtp
+        PHOTO_STORAGE_CONTAINER: fitcart-member-photos
+        MAX_UPLOAD_SIZE_MB: "5"
+      modified:
+        FRONTEND_ORIGIN:
+          from: http://frontend:80
+          to: http://frontend:80
+          reason: keep current in-cluster origin; validate during discovery
+      removed: []
+
+    secrets:
+      added:
+        - name: smtp-username
+          target: Azure Key Vault and backend Kubernetes secret
+          required: true
+          owner: notification-service
+        - name: smtp-password
+          target: Azure Key Vault and backend Kubernetes secret
+          required: true
+          owner: notification-service
+        - name: storage-sas-token
+          target: Azure Key Vault and backend Kubernetes secret
+          required: true
+          owner: photo-upload-service
+      updated: []
+      removed: []
+
+    database:
+      engine: postgresql
+      databaseName: backenddb
+      migrationRequired: true
+      migrationFile: database/V2__fitcart_upgrade.sql
+      tables:
+        gym_record:
+          addedColumns:
+            - photo_url
+            - fitness_level
+            - target_calories
+            - workout_goal
+            - audit_created_by
+            - audit_updated_by
+            - notification_enabled
+
+    storage:
+      addedLogicalContainers:
+        - name: fitcart-member-photos
+          purpose: Store member profile and workout progress photo assets.
+          backingType: azure-storage-or-existing-pvc
+          requiredBeforeDeploy: true
+
+    infrastructure:
+      terraformChangesExpected: false
+      aksNodeCountChangeExpected: false
+      notes:
+        - This release should not create new Azure resources.
+        - ADaaS should still compare the existing Terraform state and Azure inventory.
+
+  riskAssessment:
+    risk: Medium
+    estimatedDowntimeMinutes: 15
+    reasons:
+      - Database migration adds nullable columns to a live table.
+      - Backend introduces required notification secrets.
+      - Replica count changes can trigger scheduling or image-pull failures.
+      - Storage container validation is required before photo features are enabled.
+
+  executionPlan:
+    - step: discover-current-state
+      agent: Discovery Agent
+      action: Read AKS, Helm releases, services, config maps, secrets metadata, Key Vault secret names and Terraform outputs.
+    - step: analyze-release-package
+      agent: Release Analysis Agent
+      action: Parse this release request, migration SQL, validation checks and target image tags.
+    - step: compare-current-target
+      agent: Comparison Agent
+      action: Generate app, config, secret, database, storage, Kubernetes and infra diff.
+    - step: backup-current-state
+      agent: Rollback Agent
+      action: Snapshot Helm revisions, backend config, secret names and database.
+    - step: validate-prerequisites
+      agent: Validation Agent
+      action: Confirm Key Vault access, required new secret values, image tags, storage container and DB connectivity.
+    - step: run-database-migration
+      agent: Dependency Agent
+      action: Apply database/V2__fitcart_upgrade.sql.
+    - step: update-secrets
+      agent: Secret Agent
+      action: Create smtp-username, smtp-password and storage-sas-token references.
+    - step: update-configuration
+      agent: Configuration Agent
+      action: Add ENABLE_AUDIT, NOTIFICATION_ENABLED, EMAIL_PROVIDER, PHOTO_STORAGE_CONTAINER and MAX_UPLOAD_SIZE_MB.
+    - step: deploy-backend
+      agent: Upgrade Planner
+      action: Helm upgrade backend to v2.0.0 with two replicas.
+    - step: deploy-frontend
+      agent: Upgrade Planner
+      action: Helm upgrade frontend to v2.0.0 with two replicas.
+    - step: canary-10
+      agent: Monitoring Agent
+      action: Route 10 percent traffic or simulate 10 percent canary and monitor health.
+    - step: canary-50
+      agent: Monitoring Agent
+      action: Continue to 50 percent after validation passes.
+    - step: full-rollout
+      agent: Monitoring Agent
+      action: Complete rollout to 100 percent.
+    - step: post-deploy-validation
+      agent: Validation Agent
+      action: Run validation/smoke-tests.yaml.
+
+  humanApproval:
+    required: true
+    approvalTitle: Approve FitCart v2.0 upgrade
+    approvalSummary:
+      affectedServices:
+        - frontend
+        - backend
+        - postgres
+        - backend-config
+        - backend-secrets
+        - Azure Key Vault
+      risk: Medium
+      estimatedDowntimeMinutes: 15
+      rollbackReady: true
+      proceedButtonText: Approve and Deploy
+      rejectButtonText: Reject Release
+
+  rollback:
+    automaticOnFailure: true
+    restoreOrder:
+      - pause-canary
+      - rollback-frontend-helm-release
+      - rollback-backend-helm-release
+      - restore-backend-config
+      - restore-backend-secrets
+      - restore-database-backup
+      - restart-workloads
+      - validate-v1-health
+
+  demoControls:
+    simulateExecution: true
+    simulateFailure: true
+    failureScenarioFile: rollback/failure-simulation.yaml
+    driftScenarioFile: drift/drift-simulation.yaml
