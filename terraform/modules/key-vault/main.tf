@@ -32,17 +32,26 @@ resource "azurerm_key_vault" "this" {
   tags = var.tags
 }
 
-# In RBAC mode, owning the vault is not enough to read or write its secrets —
-# a data-plane role is required. Without this, secret creation below returns 403.
+# In RBAC mode, owning the vault does not grant access to the secrets inside it —
+# that needs a data-plane role. Skip this when the principal already holds
+# "Key Vault Secrets Officer" at a higher scope (subscription or management
+# group), which is common with centrally provisioned service principals. Creating
+# a role assignment also requires Owner or RBAC Administrator, so a Contributor-
+# only principal must set create_role_assignment = false.
 resource "azurerm_role_assignment" "secrets_officer" {
+  count = var.create_role_assignment ? 1 : 0
+
   scope                = azurerm_key_vault.this.id
   role_definition_name = "Key Vault Secrets Officer"
   principal_id         = var.admin_object_id
 }
 
-# Azure RBAC assignments take a little while to propagate to the data plane.
-# depends_on alone gets the ordering right but still loses the race on a cold apply.
+# A freshly created assignment takes a moment to reach the data plane; depends_on
+# fixes ordering but not propagation. Not needed when the role was granted earlier
+# at a higher scope, so this waits only when we created the assignment ourselves.
 resource "time_sleep" "rbac_propagation" {
+  count = var.create_role_assignment ? 1 : 0
+
   depends_on      = [azurerm_role_assignment.secrets_officer]
   create_duration = "30s"
 }

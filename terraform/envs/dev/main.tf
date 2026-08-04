@@ -78,8 +78,10 @@ module "key_vault" {
   location            = module.resource_group.location
   tenant_id           = data.azurerm_client_config.current.tenant_id
 
-  # The principal running Terraform needs a data-plane role to write the secrets.
-  admin_object_id = data.azurerm_client_config.current.object_id
+  # Off by default here: the service principal already holds Key Vault Secrets
+  # Officer at subscription scope, which any vault created below inherits.
+  create_role_assignment = var.create_key_vault_role_assignment
+  admin_object_id        = data.azurerm_client_config.current.object_id
 
   secrets = {
     "postgres-user"     = var.postgres_user
@@ -117,7 +119,14 @@ module "aks" {
 
 # This is what lets the cluster pull from ACR with no imagePullSecrets anywhere
 # in the Helm charts. If it is missing, pods fail with ImagePullBackOff.
+#
+# Creating it requires Owner or RBAC Administrator on the scope — Contributor is
+# not enough. Where that cannot be granted, set create_acr_role_assignment =
+# false and instead enable the ACR admin user and have the deploy workflows
+# create a docker-registry imagePullSecret in the cluster.
 resource "azurerm_role_assignment" "aks_acr_pull" {
+  count = var.create_acr_role_assignment ? 1 : 0
+
   scope                            = module.acr.id
   role_definition_name             = "AcrPull"
   principal_id                     = module.aks.kubelet_identity_object_id

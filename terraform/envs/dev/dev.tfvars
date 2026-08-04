@@ -24,6 +24,16 @@ node_count   = 2
 
 postgres_user = "fitcart"
 
+# The service principal already holds Key Vault Secrets Officer at subscription
+# scope, so re-granting it on the vault is redundant — and would fail, since
+# Contributor cannot create role assignments.
+create_key_vault_role_assignment = false
+
+# AcrPull still needs to be created. This requires Owner or RBAC Administrator
+# on the resource group; Contributor alone is not enough. Flip to false only if
+# that grant cannot be obtained, and switch the charts to imagePullSecrets.
+create_acr_role_assignment = true
+
 tags = {
   owner   = "platform"
   purpose = "testing"

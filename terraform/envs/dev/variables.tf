@@ -91,6 +91,18 @@ variable "node_count" {
   default     = 2
 }
 
+variable "create_key_vault_role_assignment" {
+  description = "Grant the Terraform principal Key Vault Secrets Officer on the vault. False when it already holds that role at subscription scope, which is the case for this environment's service principal."
+  type        = bool
+  default     = false
+}
+
+variable "create_acr_role_assignment" {
+  description = "Grant the AKS kubelet identity AcrPull on the registry. Requires Owner or RBAC Administrator on the scope; Contributor cannot create role assignments. False falls back to ACR admin credentials and an imagePullSecret."
+  type        = bool
+  default     = true
+}
+
 variable "postgres_user" {
   description = "Postgres username stored in Key Vault. The password is generated, not configured."
   type        = string

@@ -107,22 +107,64 @@ Copy the `storage_account_name` output into `storage_account_name` in
 [envs/dev/backend.tf](envs/dev/backend.tf), replacing `REPLACE_WITH_BOOTSTRAP_OUTPUT`.
 The name carries a random suffix, so it cannot be committed ahead of time.
 
-### 3. Create the CI service principal
+### 3. The CI service principal
+
+If you already have one, skip creating it and check its permissions instead:
+
+```bash
+az role assignment list --assignee <appId> --all -o table
+```
+
+Otherwise:
 
 ```bash
 az ad sp create-for-rbac \
   --name sp-fitcart-github \
-  --role Owner \
-  --scopes /subscriptions/<subscription-id>
+  --role Contributor \
+  --scopes /subscriptions/<subscription-id>/resourceGroups/AZET-RG-Daas-Platform
 ```
 
-**`Owner`, not `Contributor`.** The SP creates role assignments — `AcrPull` for
-the cluster and `Key Vault Secrets Officer` for itself — and `Contributor` cannot
-create role assignments. On a shared subscription use `Contributor` plus
-`User Access Administrator` instead.
+#### What the principal must be able to do
 
-The command prints `appId`, `password` and `tenant`. Save them as four GitHub
-**secrets** (*Settings → Secrets and variables → Actions → Secrets*):
+| Capability | Role that provides it | Used for |
+|---|---|---|
+| Create resources in the group | `Contributor` | VNet, ACR, Key Vault, AKS, storage |
+| Create the AKS node resource group | `Contributor` at **subscription** scope | AKS creates its own `MC_*` group |
+| Read/write Key Vault secrets | `Key Vault Secrets Officer` | the generated Postgres password |
+| **Create role assignments** | `Owner` or `Role Based Access Control Administrator` | the `AcrPull` grant |
+
+That last row is the one that trips people up. **`Contributor` cannot create role
+assignments**, and the configuration needs one so AKS can pull from ACR. If your
+principal is Contributor-only, have an admin run this once:
+
+```bash
+az role assignment create \
+  --assignee-object-id <sp-object-id> \
+  --assignee-principal-type ServicePrincipal \
+  --role "Role Based Access Control Administrator" \
+  --scope /subscriptions/<subscription-id>/resourceGroups/AZET-RG-Daas-Platform
+```
+
+`Role Based Access Control Administrator` is narrower than
+`User Access Administrator` — it permits managing role assignments and nothing
+else — so it is usually the easier approval to obtain.
+
+Where that grant is impossible, set `create_acr_role_assignment = false` in
+tfvars and switch the charts to ACR admin credentials plus an `imagePullSecret`.
+That works with plain Contributor, at the cost of a static registry password
+living in the cluster.
+
+Two toggles in [envs/dev/dev.tfvars](envs/dev/dev.tfvars) control this:
+
+- `create_key_vault_role_assignment` — leave `false` when the principal already
+  holds `Key Vault Secrets Officer` at subscription scope, as this one does.
+  Re-granting it on the vault would be redundant *and* would fail.
+- `create_acr_role_assignment` — `true` once the grant above is in place.
+
+#### Credentials
+
+Save four GitHub **secrets** (*Settings → Secrets and variables → Actions →
+Secrets*):
 
 | Secret | Value |
 |---|---|

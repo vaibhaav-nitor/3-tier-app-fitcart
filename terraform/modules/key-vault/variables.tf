@@ -24,8 +24,15 @@ variable "tenant_id" {
 }
 
 variable "admin_object_id" {
-  description = "Object ID granted Key Vault Secrets Officer — the principal running Terraform."
+  description = "Object ID granted Key Vault Secrets Officer — the principal running Terraform. Ignored when create_role_assignment is false."
   type        = string
+  default     = null
+}
+
+variable "create_role_assignment" {
+  description = "Grant admin_object_id Key Vault Secrets Officer on this vault. Set false when the principal already holds that role at a higher scope, or when it lacks the Owner/RBAC Administrator rights needed to create role assignments."
+  type        = bool
+  default     = true
 }
 
 variable "secrets" {
