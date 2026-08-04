@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  labels:
+    app: frontend
+data:
+  config.js: |
+    window.__FITCART_CONFIG__ = {
+      HERO_HIGHLIGHT_TEXT: {{ .Values.runtimeConfig.heroHighlightText | quote }}
+    };

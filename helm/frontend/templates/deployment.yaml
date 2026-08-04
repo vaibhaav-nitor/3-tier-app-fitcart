@@ -13,6 +13,8 @@ spec:
     metadata:
       labels:
         app: frontend
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
       {{- if .Values.imagePullSecret }}
       # Present only where the kubelet identity lacks AcrPull on the registry.
@@ -41,3 +43,11 @@ spec:
             periodSeconds: 20
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: frontend-config
+              mountPath: /usr/share/nginx/html/config.js
+              subPath: config.js
+      volumes:
+        - name: frontend-config
+          configMap:
+            name: frontend-config

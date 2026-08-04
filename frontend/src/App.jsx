@@ -14,6 +14,9 @@ const SPORTS = [
   { icon: '🥊', label: 'Boxing' },
 ];
 
+const runtimeConfig = window.__FITCART_CONFIG__ || {};
+const heroHighlightText = runtimeConfig.HERO_HIGHLIGHT_TEXT || 'Progress.';
+
 function App() {
   const [advisorPick, setAdvisorPick] = React.useState({ exercise: '', diet: '' });
 
@@ -82,7 +85,7 @@ function App() {
         <div className="dec-hero-inner">
           <div className="dec-hero-text">
             <p className="hero-tag">YOUR PERSONAL FITNESS TRACKER</p>
-            <h1>Track Your <span>Progress.</span><br />Crush Every Goal.</h1>
+            <h1>Track Your <span>{heroHighlightText}</span><br />Crush Every Goal.</h1>
             <p className="hero-sub">Log your exercises, monitor your body weight, and track your nutrition — all in one place.</p>
             <div className="hero-actions">
               <button className="hero-cta-primary">Start Tracking</button>
