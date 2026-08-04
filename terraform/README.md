@@ -25,7 +25,7 @@ Everything is deployed into the **existing** resource group
 | Virtual network | `vnet-fitcart-dev` | `10.0.0.0/16`; `snet-aks` is `10.0.1.0/24` |
 | Container registry | `acrfitcartdev<suffix>` | Basic SKU, admin user disabled |
 | Key Vault | `kv-fitcart-dev-<suffix>` | RBAC mode, holds the Postgres credentials |
-| AKS cluster | `aks-fitcart-dev` | 2× `Standard_D2s_v3`, Azure CNI overlay, in `snet-aks` |
+| AKS cluster | `aks-fitcart-dev` | 1× `Standard_D2s_v3`, Azure CNI overlay, in `snet-aks` |
 | Storage account | `stfitcarttfstate<suffix>` | Terraform state, created by `bootstrap/` |
 | Role assignment | `AcrPull` | AKS kubelet identity → ACR |
 
@@ -268,17 +268,23 @@ configured with `purge_soft_delete_on_destroy`, so the vault name is released
 and a later `apply` succeeds. Turning purge protection on in a test environment
 means the next apply fails on the still-reserved name.
 
-Left running, the footprint costs roughly **$160–180/month** — most of it the two
-`Standard_D2s_v3` nodes at about $70 each.
+Left running, the footprint costs roughly **$95–110/month** — most of it the
+single `Standard_D2s_v3` node at about $70.
 
-The cheaper B-series is blocked by this subscription's allowed-SKU policy. The
-permitted `standard_b2ps_v2` / `standard_b2pls_v2` are ARM64, which the amd64
-images built on GitHub runners cannot execute, so they are not an option without
-cross-building.
+Two constraints shaped that choice, both specific to this subscription:
 
-Dropping `node_count` to `1` roughly halves the cost and is adequate for the POC:
-the three tiers request about 350m CPU and 850Mi total, well inside one node's
-allocatable capacity. Two nodes exist only for headroom and resilience.
+- **Allowed-SKU policy** blocks the cheaper B-series. The permitted
+  `standard_b2ps_v2` / `standard_b2pls_v2` are ARM64, which the amd64 images
+  built on GitHub runners cannot execute, so they are not an option without
+  cross-building.
+- **East US regional vCPU quota** had only 2 vCPU free. Each D2s_v3 consumes 2,
+  so two nodes were rejected with `ErrCode_InsufficientVCPUQuota`.
+
+One node is adequate here: the three tiers request about 350m CPU and 850Mi
+total, against roughly 1.9 vCPU and 5.5Gi allocatable. The trade-off is no surge
+capacity during cluster upgrades and no resilience to node loss. Raise
+`node_count` once quota allows — and note the AKS module deliberately does *not*
+set `ignore_changes` on it, so the change takes effect.
 
 `AZET-RG-Daas-Platform` survives `destroy` — Terraform only reads it. The state
 storage account inside it also survives, since it is owned by the separate

@@ -33,7 +33,16 @@ aks_sku_tier = "Free"
 # the "p" denotes ARM64, and the images are built amd64 on GitHub runners, so
 # every pod would fail with "exec format error".
 node_vm_size = "Standard_D2s_v3"
-node_count   = 2
+
+# One node, because East US regional vCPU quota has only 2 vCPU free and each
+# D2s_v3 consumes 2. Two nodes requested 4 and were rejected with
+# ErrCode_InsufficientVCPUQuota.
+#
+# Adequate for the POC: the three tiers request roughly 350m CPU and 850Mi
+# total, against about 1.9 vCPU and 5.5Gi allocatable on a single D2s_v3.
+# Raise to 2 once the quota is increased — it gives headroom for surge during
+# cluster upgrades, which a single-node pool cannot provide.
+node_count = 1
 
 postgres_user = "fitcart"
 
