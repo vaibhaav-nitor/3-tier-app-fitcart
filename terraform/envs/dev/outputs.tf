@@ -31,6 +31,7 @@ output "vnet_name" {
 # Convenience: everything the GitHub Actions `env:` blocks need, in one place.
 output "workflow_env" {
   description = "Values to copy into the workflow env: blocks."
+
   value = {
     ACR_NAME             = module.acr.name
     ACR_LOGIN_SERVER     = module.acr.login_server

@@ -35,6 +35,7 @@ variable "location" {
 variable "tags" {
   description = "Tags applied to all bootstrap resources."
   type        = map(string)
+
   default = {
     project   = "fitcart"
     managedBy = "terraform"
