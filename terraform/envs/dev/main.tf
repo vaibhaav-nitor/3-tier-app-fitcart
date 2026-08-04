@@ -97,7 +97,7 @@ module "key_vault" {
 }
 
 resource "azurerm_key_vault_secret" "frontend_hero_highlight_text" {
-  name         = "fitcart-hero-highlight-text"
+  name         = "version-v1"
   value        = "Progress."
   key_vault_id = module.key_vault.id
 

@@ -113,12 +113,12 @@ jobs:
           set -euo pipefail
           hero_highlight_text=$(az keyvault secret show \
             --vault-name "$KEY_VAULT_NAME" \
-            --name fitcart-hero-highlight-text \
+            --name version-v1 \
             --query value -o tsv 2>/dev/null || true)
 
           if [ -z "$hero_highlight_text" ]; then
             hero_highlight_text="Progress."
-            echo "Key Vault secret fitcart-hero-highlight-text not found. Using default frontend hero text."
+            echo "Key Vault secret version-v1 not found. Using default frontend hero text."
           fi
 
           echo "HERO_HIGHLIGHT_TEXT=$hero_highlight_text" >> "$GITHUB_ENV"
