@@ -98,9 +98,15 @@ variable "create_key_vault_role_assignment" {
 }
 
 variable "create_acr_role_assignment" {
-  description = "Grant the AKS kubelet identity AcrPull on the registry. Requires Owner or RBAC Administrator on the scope; Contributor cannot create role assignments. False falls back to ACR admin credentials and an imagePullSecret."
+  description = "Have Terraform grant the AKS kubelet identity AcrPull on the registry. Requires Owner or RBAC Administrator on the scope; Contributor cannot create role assignments, manually or otherwise. Set false when the grant is made out-of-band."
   type        = bool
   default     = true
+}
+
+variable "use_image_pull_secret" {
+  description = "Enable the ACR admin user so the deploy workflows can create a docker-registry imagePullSecret. Only needed when no AcrPull assignment exists by any route. Independent of create_acr_role_assignment, so AcrPull can be granted manually without enabling a shared credential."
+  type        = bool
+  default     = false
 }
 
 variable "postgres_user" {

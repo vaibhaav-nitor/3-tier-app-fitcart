@@ -29,10 +29,20 @@ postgres_user = "fitcart"
 # Contributor cannot create role assignments.
 create_key_vault_role_assignment = false
 
-# AcrPull still needs to be created. This requires Owner or RBAC Administrator
-# on the resource group; Contributor alone is not enough. Flip to false only if
-# that grant cannot be obtained, and switch the charts to imagePullSecrets.
+# AKS needs AcrPull on the registry or every pod lands in ImagePullBackOff.
+# Creating that assignment needs Owner or RBAC Administrator — Contributor
+# cannot do it from Terraform, the CLI, or the portal. Three workable setups:
+#
+#   1. Terraform grants it   → create_acr_role_assignment = true,  use_image_pull_secret = false
+#   2. Granted out-of-band   → create_acr_role_assignment = false, use_image_pull_secret = false
+#   3. No grant possible     → create_acr_role_assignment = false, use_image_pull_secret = true
+#
+# Setup 2 covers running `az role assignment create` yourself after apply, if
+# your own account holds rights the service principal does not. Setup 3 is the
+# POC fallback: it enables the ACR admin user and the deploy workflows create a
+# docker-registry secret from it. Some subscriptions deny admin by Azure Policy.
 create_acr_role_assignment = true
+use_image_pull_secret      = false
 
 tags = {
   owner   = "platform"

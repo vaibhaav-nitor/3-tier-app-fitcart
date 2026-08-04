@@ -125,6 +125,31 @@ jobs:
           echo "DB_USER=$db_user" >> "$GITHUB_ENV"
           echo "DB_PASSWORD=$db_password" >> "$GITHUB_ENV"
 
+      # Self-detecting: the ACR admin user is enabled by Terraform only when no
+      # AcrPull assignment exists. Flipping that toggle needs no change here.
+      - name: Configure image pull secret
+        run: |
+          set -euo pipefail
+          kubectl create namespace "$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+
+          admin=$(az acr show --name "$ACR_NAME" --query adminUserEnabled -o tsv)
+          if [ "$admin" = "true" ]; then
+            user=$(az acr credential show --name "$ACR_NAME" --query username -o tsv)
+            pass=$(az acr credential show --name "$ACR_NAME" --query "passwords[0].value" -o tsv)
+            echo "::add-mask::$pass"
+            kubectl create secret docker-registry acr-pull-secret \
+              --docker-server="$ACR_LOGIN_SERVER" \
+              --docker-username="$user" \
+              --docker-password="$pass" \
+              --namespace "$K8S_NAMESPACE" \
+              --dry-run=client -o yaml | kubectl apply -f -
+            echo "IMAGE_PULL_SECRET=acr-pull-secret" >> "$GITHUB_ENV"
+            echo "Using imagePullSecret (ACR admin enabled)."
+          else
+            echo "IMAGE_PULL_SECRET=" >> "$GITHUB_ENV"
+            echo "Pulling via the kubelet identity's AcrPull role assignment."
+          fi
+
       - name: Install Helm
         uses: azure/setup-helm@v4
 
@@ -143,6 +168,7 @@ jobs:
             --timeout 10m \
             --set image.repository="${ACR_LOGIN_SERVER}/${IMAGE_NAME}" \
             --set image.tag="${{ needs.build.outputs.image_tag }}" \
+            --set imagePullSecret="$IMAGE_PULL_SECRET" \
             --set db.user="$DB_USER" \
             --set db.password="$DB_PASSWORD"
 

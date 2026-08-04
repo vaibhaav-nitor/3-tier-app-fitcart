@@ -56,6 +56,11 @@ module "acr" {
   location            = module.resource_group.location
   sku                 = var.acr_sku
 
+  # The admin user exists only to back the imagePullSecret fallback. Kept
+  # independent of create_acr_role_assignment so that AcrPull can be granted
+  # out-of-band without also enabling a shared credential.
+  admin_enabled = var.use_image_pull_secret
+
   tags = local.tags
 }
 

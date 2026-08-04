@@ -29,6 +29,12 @@ variable "sku" {
   }
 }
 
+variable "admin_enabled" {
+  description = "Enable the shared admin user. Required only when the cluster pulls with an imagePullSecret instead of an AcrPull role assignment. Some subscriptions deny this by Azure Policy."
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   description = "Tags applied to the registry."
   type        = map(string)
