@@ -13,8 +13,13 @@ create_resource_group = false
 # clusters in this group already use.
 # aks_node_resource_group_name = null
 
-vnet_address_space = ["10.0.0.0/16"]
-aks_subnet_prefix  = "10.0.1.0/24"
+# Five VNets already in this resource group sit on 10.0.0.0/16 and one on
+# 10.1.0.0/16. Overlapping is legal while nothing is peered — those five overlap
+# each other today — but it permanently blocks peering and App Service VNet
+# integration. 10.50.0.0/16 stays clear of everything currently in use.
+# 10.50.2.0/24 is left free for App Service integration in a later phase.
+vnet_address_space = ["10.50.0.0/16"]
+aks_subnet_prefix  = "10.50.1.0/24"
 
 acr_sku = "Basic"
 
