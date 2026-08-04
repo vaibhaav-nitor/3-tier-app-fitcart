@@ -96,6 +96,18 @@ module "key_vault" {
   tags = local.tags
 }
 
+resource "azurerm_key_vault_secret" "frontend_hero_highlight_text" {
+  name         = "fitcart-hero-highlight-text"
+  value        = "Progress."
+  key_vault_id = module.key_vault.id
+
+  # Terraform bootstraps the initial value only. ADaaS owns release-time changes
+  # such as Progress. -> Journey., so later applies must not revert the demo.
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
 # 5. AKS, joined to the subnet created above.
 #
 # The cluster object itself lands in the resource group above, but AKS ALWAYS

@@ -25,6 +25,11 @@ service:
 # Matches EXPOSE 80 in frontend/Dockerfile.
 containerPort: 80
 
+runtimeConfig:
+  # Default for local rendering. CI overwrites it from Azure Key Vault secret
+  # `fitcart-hero-highlight-text`.
+  heroHighlightText: "Progress."
+
 resources:
   requests:
     cpu: 50m
