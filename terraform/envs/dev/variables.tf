@@ -25,8 +25,20 @@ variable "environment" {
   }
 }
 
+variable "resource_group_name" {
+  description = "Resource group that holds every resource in this configuration."
+  type        = string
+  default     = "AZET-RG-Daas-Platform"
+}
+
+variable "create_resource_group" {
+  description = "Create the resource group. False means it already exists and is managed outside this configuration, so destroy leaves it in place."
+  type        = bool
+  default     = false
+}
+
 variable "location" {
-  description = "Azure region for all resources."
+  description = "Azure region. Only used when create_resource_group is true; otherwise resources follow the existing group's region."
   type        = string
   default     = "centralindia"
 }
@@ -47,6 +59,12 @@ variable "acr_sku" {
   description = "Container registry SKU."
   type        = string
   default     = "Basic"
+}
+
+variable "aks_node_resource_group_name" {
+  description = "Name for the second, Azure-managed group AKS creates for node infrastructure. AKS cannot place these in the cluster's own resource group. Null accepts the generated MC_* name."
+  type        = string
+  default     = "AZET-RG-Daas-Platform-aks-nodes"
 }
 
 variable "kubernetes_version" {

@@ -29,17 +29,32 @@ resource "random_string" "suffix" {
   numeric = true
 }
 
+# Either created or looked up, never both — same pattern as the resource-group
+# module. Defaults to reading an existing group, so destroying this bootstrap
+# never removes a shared group it did not create.
 resource "azurerm_resource_group" "tfstate" {
-  name     = "rg-${var.project}-tfstate"
+  count = var.create_resource_group ? 1 : 0
+
+  name     = var.resource_group_name
   location = var.location
 
   tags = var.tags
 }
 
+data "azurerm_resource_group" "tfstate" {
+  count = var.create_resource_group ? 0 : 1
+
+  name = var.resource_group_name
+}
+
+locals {
+  group = var.create_resource_group ? azurerm_resource_group.tfstate[0] : data.azurerm_resource_group.tfstate[0]
+}
+
 resource "azurerm_storage_account" "tfstate" {
   name                = "st${var.project}tfstate${random_string.suffix.result}"
-  resource_group_name = azurerm_resource_group.tfstate.name
-  location            = azurerm_resource_group.tfstate.location
+  resource_group_name = local.group.name
+  location            = local.group.location
 
   account_tier             = "Standard"
   account_replication_type = "LRS"

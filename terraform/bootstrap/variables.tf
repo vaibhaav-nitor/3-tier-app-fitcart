@@ -14,8 +14,20 @@ variable "project" {
   }
 }
 
+variable "resource_group_name" {
+  description = "Resource group to hold the Terraform state storage account."
+  type        = string
+  default     = "AZET-RG-Daas-Platform"
+}
+
+variable "create_resource_group" {
+  description = "Create the resource group. False means it already exists and is managed elsewhere."
+  type        = bool
+  default     = false
+}
+
 variable "location" {
-  description = "Azure region."
+  description = "Azure region. Only used when create_resource_group is true; otherwise the existing group's region is used."
   type        = string
   default     = "centralindia"
 }

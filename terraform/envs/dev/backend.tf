@@ -1,6 +1,6 @@
 terraform {
   backend "azurerm" {
-    resource_group_name = "rg-fitcart-tfstate"
+    resource_group_name = "AZET-RG-Daas-Platform"
 
     # Replace with the storage_account_name printed by terraform/bootstrap.
     # It carries a random suffix, so it cannot be known ahead of time.

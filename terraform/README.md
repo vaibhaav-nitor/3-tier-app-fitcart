@@ -16,17 +16,49 @@ is a copy of `envs/dev` with a different tfvars file and state key.
 
 ## What gets created
 
+Everything is deployed into the **existing** resource group
+`AZET-RG-Daas-Platform`, set by `resource_group_name` in
+[envs/dev/dev.tfvars](envs/dev/dev.tfvars).
+
 | Resource | Name | Notes |
 |---|---|---|
-| Resource group | `rg-fitcart-dev` | holds everything below |
 | Virtual network | `vnet-fitcart-dev` | `10.0.0.0/16`; `snet-aks` is `10.0.1.0/24` |
 | Container registry | `acrfitcartdev<suffix>` | Basic SKU, admin user disabled |
 | Key Vault | `kv-fitcart-dev-<suffix>` | RBAC mode, holds the Postgres credentials |
 | AKS cluster | `aks-fitcart-dev` | 2× `Standard_B2s`, Azure CNI overlay, in `snet-aks` |
+| Storage account | `stfitcarttfstate<suffix>` | Terraform state, created by `bootstrap/` |
 | Role assignment | `AcrPull` | AKS kubelet identity → ACR |
+
+Resources inherit the existing group's **region** — `location` in tfvars is only
+consulted when Terraform creates the group itself.
 
 `10.0.2.0/24` is intentionally left unallocated for App Service VNet integration
 in a later phase.
+
+### The group is read, not managed
+
+`create_resource_group = false` makes Terraform look the group up with a data
+source rather than own it. Two consequences worth knowing:
+
+- **`terraform destroy` will not delete `AZET-RG-Daas-Platform`.** It removes the
+  resources this configuration created and leaves the shared group in place.
+- The group must already exist, and the service principal needs rights on it.
+  Terraform will fail early with a clear "not found" if it doesn't.
+
+To have Terraform create and own a group instead, set `create_resource_group = true`
+and give `resource_group_name` a new name. `destroy` would then delete it.
+
+### One resource group Terraform cannot control
+
+AKS **always** creates a second resource group for its node infrastructure — the
+VM scale set, node disks, and the load balancer that fronts the frontend Service.
+Azure does not allow those to live in the cluster's own resource group; there is
+no setting that changes this.
+
+All this configuration can do is name it, via `aks_node_resource_group_name`
+(default `AZET-RG-Daas-Platform-aks-nodes`). Left unset, Azure generates
+`MC_AZET-RG-Daas-Platform_aks-fitcart-dev_<region>`. It is deleted automatically
+when the cluster is deleted, so it needs no separate cleanup.
 
 ### Why ACR is not inside the VNet
 
@@ -50,7 +82,8 @@ az account set --subscription <subscription-id>
 ### 2. Create the remote state backend
 
 This is the only Terraform that runs on local state — it creates the storage
-account the rest of the configuration stores its state in.
+account the rest of the configuration stores its state in, inside the same
+`AZET-RG-Daas-Platform` group.
 
 ```bash
 cd terraform/bootstrap
@@ -152,13 +185,20 @@ means the next apply fails on the still-reserved name.
 Left running, the footprint costs roughly **$70–90/month** — most of it the two
 `Standard_B2s` nodes.
 
-The bootstrap resource group is not touched by `destroy`; remove it by hand if
-you are finished with the project entirely.
+`AZET-RG-Daas-Platform` survives `destroy` — Terraform only reads it. The state
+storage account inside it also survives, since it is owned by the separate
+`bootstrap/` configuration. **Do not delete the group by hand**: it is shared,
+and removing it would take the state account and anything else in it with it.
+
+To remove the state account specifically, run `terraform destroy` in
+`terraform/bootstrap` — that deletes the account and, because
+`create_resource_group` is false there too, leaves the group alone.
 
 ## Conventions
 
-- All names derive from `var.project` and `var.environment`, so nothing is
-  hardcoded to `fitcart` or `dev`.
+- Workload names derive from `var.project` and `var.environment`, so nothing is
+  hardcoded to `fitcart` or `dev`. The resource group is the exception: it is
+  named explicitly because it is pre-existing and shared.
 - `subscription_id` is never committed. Locally pass `-var`, in CI it comes from
   `TF_VAR_subscription_id`, set from the `AZURE_SUBSCRIPTION_ID` secret.
 - Run `terraform fmt -recursive` before committing — CI fails on unformatted files.

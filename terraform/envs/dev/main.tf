@@ -20,11 +20,13 @@ resource "random_string" "suffix" {
   numeric = true
 }
 
-# 1. Resource group — everything below lands here.
+# 1. Resource group — everything below lands here. Defaults to an existing,
+# externally managed group, which `terraform destroy` will therefore not delete.
 module "resource_group" {
   source = "../../modules/resource-group"
 
-  name     = "rg-${local.prefix}"
+  name     = var.resource_group_name
+  create   = var.create_resource_group
   location = var.location
   tags     = local.tags
 }
@@ -88,6 +90,13 @@ module "key_vault" {
 }
 
 # 5. AKS, joined to the subnet created above.
+#
+# The cluster object itself lands in the resource group above, but AKS ALWAYS
+# creates a second, Azure-managed group for the node infrastructure — the VMSS,
+# node disks, and the load balancer backing the frontend Service. That is a
+# platform constraint with no opt-out: those resources cannot be placed in the
+# same group as the cluster. Naming it explicitly keeps it recognisable instead
+# of the default MC_<rg>_<cluster>_<region>.
 module "aks" {
   source = "../../modules/aks"
 
@@ -97,7 +106,7 @@ module "aks" {
   dns_prefix          = "aks-${local.prefix}"
   subnet_id           = module.networking.aks_subnet_id
 
-  node_resource_group_name = "rg-${local.prefix}-aks-nodes"
+  node_resource_group_name = var.aks_node_resource_group_name
   kubernetes_version       = var.kubernetes_version
   sku_tier                 = var.aks_sku_tier
   node_vm_size             = var.node_vm_size
