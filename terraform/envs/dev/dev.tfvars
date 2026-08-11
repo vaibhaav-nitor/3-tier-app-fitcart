@@ -74,6 +74,25 @@ create_key_vault_role_assignment = false
 create_acr_role_assignment = false
 use_image_pull_secret      = true
 
+# Enables the AKS-managed Key Vault CSI driver so secret rotation can reach
+# running pods without a redeploy. Safe on its own: this alone changes nothing
+# for any workload, since no chart references a SecretProviderClass yet.
+#
+# create_key_vault_csi_role_assignment stays false on its FIRST apply — the
+# driver's identity does not exist until this apply completes, so there is
+# nothing yet to grant a role to. Same wall as AcrPull otherwise: Contributor
+# cannot create the role assignment once the identity does exist either.
+#
+# Sequence: (1) apply with enable_key_vault_csi = true, role assignment still
+# false — this creates the identity. (2) read its object ID from
+# `terraform output key_vault_csi_identity_object_id`. (3) have that identity
+# granted Key Vault Secrets User (out-of-band, or flip
+# create_key_vault_csi_role_assignment = true if Terraform ever gets the
+# rights to do it itself) on kv-fitcart-dev-1kwf3d. (4) re-apply.
+enable_key_vault_csi                 = true
+key_vault_csi_rotation_interval      = "2m"
+create_key_vault_csi_role_assignment = false
+
 tags = {
   owner   = "platform"
   purpose = "testing"

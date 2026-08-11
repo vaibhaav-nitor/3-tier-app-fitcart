@@ -41,6 +41,18 @@ resource "azurerm_kubernetes_cluster" "this" {
   # locking it down means a private cluster or an authorized-IP list.
   local_account_disabled = false
 
+  # AKS-managed Secrets Store CSI driver + Azure Key Vault provider. Creates its
+  # own identity (surfaced via the key_vault_csi_identity_object_id output) —
+  # that identity still needs a Key Vault Secrets User role assignment before
+  # it can read anything, which is a separate, gated step (see envs/dev/main.tf).
+  dynamic "key_vault_secrets_provider" {
+    for_each = var.enable_key_vault_csi ? [1] : []
+    content {
+      secret_rotation_enabled  = true
+      secret_rotation_interval = var.key_vault_csi_rotation_interval
+    }
+  }
+
   tags = var.tags
 
   # No ignore_changes on node_count. That guard only earns its keep when the

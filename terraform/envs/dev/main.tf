@@ -131,6 +131,9 @@ module "aks" {
   node_vm_size             = var.node_vm_size
   node_count               = var.node_count
 
+  enable_key_vault_csi            = var.enable_key_vault_csi
+  key_vault_csi_rotation_interval = var.key_vault_csi_rotation_interval
+
   tags = local.tags
 }
 
@@ -147,5 +150,22 @@ resource "azurerm_role_assignment" "aks_acr_pull" {
   scope                            = module.acr.id
   role_definition_name             = "AcrPull"
   principal_id                     = module.aks.kubelet_identity_object_id
+  skip_service_principal_aad_check = true
+}
+
+# Lets the Key Vault CSI driver's own identity (a different principal from the
+# kubelet identity above — see module.aks.key_vault_csi_identity_object_id)
+# read secrets so it can mount and rotate them into pods.
+#
+# Same wall as AcrPull: creating this needs Owner or RBAC Administrator, which
+# Contributor does not have. Bootstrapping order matters here — the identity
+# does not exist until enable_key_vault_csi = true has already been applied
+# once, so this cannot be created in the same apply that turns the addon on.
+resource "azurerm_role_assignment" "aks_key_vault_csi_secrets_user" {
+  count = var.create_key_vault_csi_role_assignment ? 1 : 0
+
+  scope                            = module.key_vault.id
+  role_definition_name             = "Key Vault Secrets User"
+  principal_id                     = module.aks.key_vault_csi_identity_object_id
   skip_service_principal_aad_check = true
 }
