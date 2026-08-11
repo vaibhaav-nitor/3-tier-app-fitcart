@@ -128,9 +128,21 @@ variable "create_key_vault_csi_role_assignment" {
 }
 
 variable "postgres_user" {
-  description = "Postgres username stored in Key Vault. The password is generated, not configured."
+  description = "Postgres username stored in Key Vault. The password is generated, not configured. Also used as the managed database's administrator_login."
   type        = string
   default     = "fitcart"
+}
+
+variable "postgres_sku_name" {
+  description = "Managed PostgreSQL compute tier, in the form <Tier>_<VMSize>. Burstable is the cheapest tier and adequate for this workload's actual usage."
+  type        = string
+  default     = "B_Standard_B1ms"
+}
+
+variable "postgres_storage_mb" {
+  description = "Managed PostgreSQL storage in MB. 32768 (32Gi) is the Flexible Server minimum."
+  type        = number
+  default     = 32768
 }
 
 variable "tags" {

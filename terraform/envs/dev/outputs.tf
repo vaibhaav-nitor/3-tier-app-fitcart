@@ -28,6 +28,11 @@ output "vnet_name" {
   value       = module.networking.vnet_name
 }
 
+output "postgres_fqdn" {
+  description = "Managed database hostname. Set as POSTGRES_HOST in the backend deploy workflow."
+  value       = module.postgresql.fqdn
+}
+
 output "key_vault_csi_identity_object_id" {
   description = "Object ID of the Key Vault CSI driver's identity. Give this to whoever grants roles: it needs Key Vault Secrets User on the vault before any SecretProviderClass can read from it. Null until enable_key_vault_csi has been applied at least once."
   value       = module.aks.key_vault_csi_identity_object_id
@@ -48,5 +53,6 @@ output "workflow_env" {
     AKS_CLUSTER_NAME     = module.aks.name
     AZURE_RESOURCE_GROUP = module.resource_group.name
     KEY_VAULT_NAME       = module.key_vault.name
+    POSTGRES_HOST        = module.postgresql.fqdn
   }
 }

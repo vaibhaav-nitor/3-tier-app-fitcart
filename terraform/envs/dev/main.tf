@@ -96,6 +96,26 @@ module "key_vault" {
   tags = local.tags
 }
 
+# 4b. Managed PostgreSQL, replacing the in-cluster database. Reuses the exact
+# same credentials already generated for Key Vault above, so nothing about the
+# credential flow changes — only where the database itself runs.
+module "postgresql" {
+  source = "../../modules/postgresql"
+
+  name                = "psql-${local.prefix}-${random_string.suffix.result}"
+  resource_group_name = module.resource_group.name
+  location            = module.resource_group.location
+
+  administrator_login    = var.postgres_user
+  administrator_password = random_password.postgres.result
+  database_name          = "backenddb"
+
+  sku_name   = var.postgres_sku_name
+  storage_mb = var.postgres_storage_mb
+
+  tags = local.tags
+}
+
 resource "azurerm_key_vault_secret" "frontend_hero_highlight_text" {
   name         = "version-v1"
   value        = "Progress."

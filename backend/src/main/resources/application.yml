@@ -1,7 +1,12 @@
 spring:
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    # sslmode=require: Azure Database for PostgreSQL Flexible Server enforces
+    # SSL by default and rejects plain connections. This does not verify the
+    # server certificate against a CA (that would be sslmode=verify-full) — it
+    # just enables encryption, which is sufficient for connecting to a known
+    # Azure hostname without bundling a CA cert into the JVM truststore.
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=require
     username: ${DB_USER}
     password: ${DB_PASSWORD}
 

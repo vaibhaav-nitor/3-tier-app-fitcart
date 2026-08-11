@@ -25,12 +25,16 @@ service:
 containerPort: 8080
 
 db:
-  # Service name published by the fitcart-database release.
-  host: postgres
+  # Empty by design. Injected at deploy time from Terraform output
+  # postgres_fqdn (Azure Database for PostgreSQL Flexible Server), via the
+  # POSTGRES_HOST repository variable. Not a Kubernetes Service name — the
+  # database no longer runs in-cluster.
+  host: ""
   port: 5432
   name: backenddb
   # Empty by design. Injected at deploy time from Azure Key Vault (secrets
-  # `postgres-user` / `postgres-password`). Never commit real values here.
+  # `postgres-user` / `postgres-password`) — the same credentials used as the
+  # managed server's administrator login. Never commit real values here.
   user: ""
   password: ""
 

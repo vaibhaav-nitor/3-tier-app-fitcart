@@ -19,6 +19,7 @@ env:
   AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
   AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
   KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+  POSTGRES_HOST: ${{ vars.POSTGRES_HOST }}
   IMAGE_NAME: fitcart-backend
   K8S_NAMESPACE: fitcart
   HELM_RELEASE: fitcart-backend
@@ -156,6 +157,7 @@ jobs:
       - name: Helm lint
         run: |
           helm lint ./helm/backend \
+            --set db.host=placeholder \
             --set db.user=placeholder \
             --set db.password=placeholder
 
@@ -169,6 +171,7 @@ jobs:
             --set image.repository="${ACR_LOGIN_SERVER}/${IMAGE_NAME}" \
             --set image.tag="${{ needs.build.outputs.image_tag }}" \
             --set imagePullSecret="$IMAGE_PULL_SECRET" \
+            --set db.host="$POSTGRES_HOST" \
             --set db.user="$DB_USER" \
             --set db.password="$DB_PASSWORD"
 

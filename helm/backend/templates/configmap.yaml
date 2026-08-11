@@ -7,7 +7,7 @@ metadata:
 data:
   # These map onto the ${...} placeholders in
   # backend/src/main/resources/application.yml.
-  DB_HOST: {{ .Values.db.host | quote }}
+  DB_HOST: {{ required "db.host is required (set from Terraform output postgres_fqdn)" .Values.db.host | quote }}
   DB_PORT: {{ .Values.db.port | quote }}
   DB_NAME: {{ .Values.db.name | quote }}
   FRONTEND_ORIGIN: {{ .Values.frontendOrigin | quote }}

@@ -46,6 +46,13 @@ node_count = 1
 
 postgres_user = "fitcart"
 
+# Cheapest generally-available Flexible Server tier. Adequate for this app's
+# actual load (see the CPU/memory figures noted for the in-cluster version this
+# replaces) — the point of moving here is mainly to free node capacity and gain
+# managed backups, not to scale up.
+postgres_sku_name   = "B_Standard_B1ms"
+postgres_storage_mb = 32768
+
 # The service principal already holds Key Vault Secrets Officer at subscription
 # scope, so re-granting it on the vault is redundant — and would fail, since
 # Contributor cannot create role assignments.
