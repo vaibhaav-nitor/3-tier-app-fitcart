@@ -1,0 +1,98 @@
+name: "[mdbtest] Terraform — Test Infrastructure"
+
+# Separate from terraform.yml on purpose. That workflow owns the dev
+# environment's state and must not be touched; this one drives a completely
+# independent state file (mdbtest.terraform.tfstate) in the same storage
+# account, so an apply here cannot affect anything dev manages.
+#
+# Manual dispatch only, no PR trigger — this is throwaway test infrastructure,
+# not something a pull request should plan against automatically.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Terraform action to run"
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+permissions:
+  contents: read
+
+env:
+  TF_VAR_FILE: mdbtest.tfvars
+
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+  TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  terraform:
+    name: ${{ inputs.action }}
+    runs-on: ubuntu-latest
+
+    # Its own concurrency group, independent of terraform.yml's — the two
+    # environments hold different state blobs and never contend.
+    concurrency:
+      group: terraform-mdbtest
+      cancel-in-progress: false
+
+    defaults:
+      run:
+        working-directory: terraform/envs/mdbtest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # No azure/login step: this workflow never invokes the az CLI, and
+      # Terraform authenticates to Azure with the ARM_* variables above.
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+          terraform_wrapper: true
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive ../..
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        run: terraform validate -no-color
+
+      - name: Terraform plan
+        if: inputs.action != 'destroy'
+        id: plan
+        run: terraform plan -input=false -no-color -var-file="$TF_VAR_FILE" -out=tfplan
+
+      - name: Terraform apply
+        if: inputs.action == 'apply'
+        run: terraform apply -input=false -auto-approve tfplan
+
+      - name: Terraform destroy
+        if: inputs.action == 'destroy'
+        run: terraform destroy -input=false -auto-approve -var-file="$TF_VAR_FILE"
+
+      # These are the values to publish as MDBTEST_* repository variables.
+      - name: Show outputs
+        if: inputs.action == 'apply'
+        run: |
+          {
+            echo "### Terraform outputs — mdbtest"
+            echo ""
+            echo "Publish these as GitHub repository **variables**:"
+            echo ""
+            echo '```json'
+            terraform output -json workflow_env
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
