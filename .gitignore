@@ -92,11 +92,16 @@ override.tf.json
 .terraformrc
 terraform.rc
 
-# tfvars may carry subscription IDs or credentials. envs/*/dev.tfvars is
-# deliberately committed (it holds only sizing and naming) — see the negation below.
+# tfvars may carry subscription IDs or credentials, so they are ignored by
+# default. Each environment's own tfvars is deliberately committed — they hold
+# only sizing and naming, never subscription_id, which is supplied per-run via
+# TF_VAR_subscription_id. The negation must name each file explicitly: a
+# pattern like !terraform/envs/*/*.tfvars would also un-ignore any ad-hoc
+# secrets.tfvars someone drops beside them.
 *.tfvars
 *.tfvars.json
-!terraform/envs/*/dev.tfvars
+!terraform/envs/dev/dev.tfvars
+!terraform/envs/mdbtest/mdbtest.tfvars
 
 # Kubeconfigs fetched by `az aks get-credentials`
 kubeconfig
