@@ -25,7 +25,18 @@ node_vm_size = "Standard_D2s_v3"
 # agentic-requests-cluster, 2 each, plus 2 elsewhere), leaving 4.
 node_count = 1
 
-postgres_user       = "fitcart"
+postgres_user = "fitcart"
+
+# East US 2, not East US. PostgreSQL Flexible Server provisioning is restricted
+# in East US for this subscription — `az postgres flexible-server list-skus
+# --location eastus` reports "Provisioning is restricted in this region" and an
+# empty version list, which Azure surfaces as a confusing
+# "The value of the 'Version' should be in: []" error on create.
+#
+# East US 2 is adjacent, so AKS-to-database latency stays in single digits.
+# Central India also works (the pre-existing psql-daas server lives there) but
+# would add roughly 200ms to every query from an East US cluster.
+postgres_location   = "eastus2"
 postgres_sku_name   = "B_Standard_B1ms"
 postgres_storage_mb = 32768
 

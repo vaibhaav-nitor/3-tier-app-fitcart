@@ -50,6 +50,14 @@ postgres_user = "fitcart"
 # actual load (see the CPU/memory figures noted for the in-cluster version this
 # replaces) — the point of moving here is mainly to free node capacity and gain
 # managed backups, not to scale up.
+# East US 2, not East US. PostgreSQL Flexible Server provisioning is restricted
+# in East US for this subscription — `az postgres flexible-server list-skus
+# --location eastus` reports "Provisioning is restricted in this region" and an
+# empty version list, which Azure surfaces as a confusing
+# "The value of the 'Version' should be in: []" error on create.
+#
+# East US 2 is adjacent, so AKS-to-database latency stays in single digits.
+postgres_location   = "eastus2"
 postgres_sku_name   = "B_Standard_B1ms"
 postgres_storage_mb = 32768
 

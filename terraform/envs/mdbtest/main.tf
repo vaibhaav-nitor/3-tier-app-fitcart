@@ -119,7 +119,13 @@ module "postgresql" {
 
   name                = "psql-${local.prefix}-${random_string.suffix.result}"
   resource_group_name = module.resource_group.name
-  location            = module.resource_group.location
+
+  # NOT module.resource_group.location. PostgreSQL Flexible Server provisioning
+  # is restricted in East US for this subscription — the capabilities API
+  # returns an empty version list there, which surfaces as the misleading
+  # "Version should be in: []" error. Azure allows a database in a different
+  # region from its resource group, so this is region-pinned separately.
+  location = var.postgres_location
 
   administrator_login    = var.postgres_user
   administrator_password = random_password.postgres.result

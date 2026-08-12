@@ -133,6 +133,12 @@ variable "postgres_user" {
   default     = "fitcart"
 }
 
+variable "postgres_location" {
+  description = "Region for the managed database, deliberately separate from the resource group's region. PostgreSQL Flexible Server provisioning is restricted in East US for this subscription, so the database lives in an adjacent region instead."
+  type        = string
+  default     = "eastus2"
+}
+
 variable "postgres_sku_name" {
   description = "Managed PostgreSQL compute tier, in the form <Tier>_<VMSize>. Burstable is the cheapest tier and adequate for this workload's actual usage."
   type        = string
