@@ -22,6 +22,15 @@ storage:
   # AKS built-in class, backed by a managed disk.
   storageClass: managed-csi
 
+keyVault:
+  # Same toggle and meaning as helm/backend/values.yaml's keyVault block —
+  # keep both releases on the same setting, since they read identical vault
+  # entries (postgres-user / postgres-password).
+  enabled: false
+  name: ""
+  tenantId: ""
+  csiIdentityClientId: ""
+
 resources:
   requests:
     cpu: 100m

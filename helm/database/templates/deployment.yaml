@@ -19,8 +19,18 @@ spec:
       labels:
         app: postgres
       annotations:
-        # Restart the pod when the credentials change.
+        {{- if not .Values.keyVault.enabled }}
+        # Static-secret path only: restarts the pod when the Secret rendered
+        # from --set values changes. In CSI mode the Secret is updated
+        # out-of-band by the driver, so Reloader (below) triggers the restart.
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if .Values.keyVault.enabled }}
+        # Reloader watches postgres-secret (referenced via secretKeyRef below)
+        # and rolling-restarts this Deployment automatically when the CSI
+        # driver updates it from a rotated Key Vault value.
+        reloader.stakater.com/auto: "true"
+        {{- end }}
     spec:
       containers:
         - name: postgres
@@ -65,7 +75,25 @@ spec:
           volumeMounts:
             - name: postgres-storage
               mountPath: /var/lib/postgresql/data
+            {{- if .Values.keyVault.enabled }}
+            - name: kv-secrets
+              mountPath: /mnt/secrets-store
+              readOnly: true
+            {{- end }}
       volumes:
         - name: postgres-storage
           persistentVolumeClaim:
             claimName: postgres-pvc
+        {{- if .Values.keyVault.enabled }}
+        # Unused by the app (it reads POSTGRES_USER/PASSWORD from
+        # secretKeyRef). Mounting is only here because the CSI driver syncs
+        # into secretObjects.secretName (postgres-secret) solely for volumes
+        # it actually has mounted somewhere — the mount is what keeps the
+        # rotation poll running against a live pod.
+        - name: kv-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: postgres-kv-secrets
+        {{- end }}

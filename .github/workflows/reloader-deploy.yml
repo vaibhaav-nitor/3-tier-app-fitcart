@@ -1,0 +1,67 @@
+name: Reloader — Install
+
+# Cluster-wide controller, not tied to any single app release. Installed once
+# and left running; re-run manually (or on a change to this file) to pick up
+# a newer chart version. Watches Secrets/ConfigMaps annotated
+# reloader.stakater.com/auto: "true" and rolling-restarts the Deployment that
+# references them — the piece that turns a Key Vault CSI-driven Secret sync
+# into an actual pod restart, with no helm upgrade or CI run.
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/reloader-deploy.yml"
+
+permissions:
+  contents: read
+
+env:
+  AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
+  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+
+jobs:
+  install:
+    name: Install Reloader
+    runs-on: ubuntu-latest
+
+    concurrency:
+      group: deploy-reloader-fitcart
+      cancel-in-progress: false
+
+    steps:
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}"}'
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AKS_CLUSTER_NAME" \
+            --overwrite-existing
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Install Reloader
+        run: |
+          set -euo pipefail
+          helm repo add stakater https://stakater.github.io/stakater-charts
+          helm repo update
+          helm upgrade --install reloader stakater/reloader \
+            --namespace kube-system \
+            --wait \
+            --timeout 5m
+
+      - name: Rollout summary
+        if: always()
+        run: |
+          {
+            echo "### Reloader install"
+            echo ""
+            echo '```'
+            kubectl get pods -n kube-system -l app=reloader-reloader -o wide || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

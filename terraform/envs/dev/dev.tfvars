@@ -62,17 +62,17 @@ create_key_vault_role_assignment = false
 # Setup 2 covers running `az role assignment create` yourself after apply, if
 # your own account holds rights the service principal does not.
 #
-# This environment is on setup 3: both the service principal and the operator
-# hold Contributor only, at resource group and subscription scope, so no route
-# to a role assignment exists. The ACR admin user is enabled and the deploy
-# workflows build a docker-registry secret from it.
-#
-# Revisit once someone grants RBAC Administrator on the resource group: set
-# create_acr_role_assignment = true and use_image_pull_secret = false, re-apply,
-# then `kubectl delete secret acr-pull-secret -n fitcart`. The workflows detect
-# the change on their own.
-create_acr_role_assignment = false
-use_image_pull_secret      = true
+# Set to setup 1: "Role Based Access Control Administrator" has been requested
+# for the service principal specifically so Terraform can create this
+# assignment itself. DO NOT apply this until that grant is confirmed live —
+# the azurerm_role_assignment.aks_acr_pull resource will fail with an
+# authorization error under the previous Contributor-only SP. Once it lands:
+# apply, then `kubectl delete secret acr-pull-secret -n fitcart` (the old
+# imagePullSecret is no longer referenced but not auto-removed). The deploy
+# workflows detect imagePullSecret being empty on their own — no workflow
+# change needed.
+create_acr_role_assignment = true
+use_image_pull_secret      = false
 
 # Enables the AKS-managed Key Vault CSI driver so secret rotation can reach
 # running pods without a redeploy. Safe on its own: this alone changes nothing
@@ -84,14 +84,30 @@ use_image_pull_secret      = true
 # cannot create the role assignment once the identity does exist either.
 #
 # Sequence: (1) apply with enable_key_vault_csi = true, role assignment still
-# false — this creates the identity. (2) read its object ID from
+# false — this creates the identity (already done: the driver's identity
+# exists on kv-fitcart-dev-1kwf3d). (2) read its object ID from
 # `terraform output key_vault_csi_identity_object_id`. (3) have that identity
-# granted Key Vault Secrets User (out-of-band, or flip
-# create_key_vault_csi_role_assignment = true if Terraform ever gets the
-# rights to do it itself) on kv-fitcart-dev-1kwf3d. (4) re-apply.
+# granted Key Vault Secrets User. (4) re-apply.
+#
+# Step (3) is now set to happen via Terraform itself
+# (create_key_vault_csi_role_assignment = true below), using the same
+# "Role Based Access Control Administrator" grant on the service principal
+# requested for AcrPull above. DO NOT apply this until that grant is
+# confirmed live — azurerm_role_assignment.aks_key_vault_csi_secrets_user
+# will fail with an authorization error under Contributor-only.
+#
+# helm/backend and helm/database now consume this via their keyVault.enabled
+# value — see helm/backend/values.yaml. That path stays off in CI until the
+# KEY_VAULT_CSI_ENABLED repo variable is set to "true", which should only
+# happen after this apply (the CSI identity's role grant) has completed —
+# turning it on earlier leaves the SecretProviderClass unable to read the
+# vault, and the deploy fails. Also run the "Reloader — Install" workflow
+# once (.github/workflows/reloader-deploy.yml) — it is what turns a rotated
+# Key Vault value into an actual pod restart, without it the CSI-synced
+# Secret updates but running pods never see the change.
 enable_key_vault_csi                 = true
 key_vault_csi_rotation_interval      = "2m"
-create_key_vault_csi_role_assignment = false
+create_key_vault_csi_role_assignment = true
 
 tags = {
   owner   = "platform"

@@ -38,15 +38,22 @@ output "key_vault_csi_identity_client_id" {
   value       = module.aks.key_vault_csi_identity_client_id
 }
 
+output "key_vault_tenant_id" {
+  description = "Tenant ID the vault belongs to. Needed by a SecretProviderClass's tenantId parameter."
+  value       = data.azurerm_client_config.current.tenant_id
+}
+
 # Convenience: everything the GitHub Actions `env:` blocks need, in one place.
 output "workflow_env" {
   description = "Values to copy into the workflow env: blocks."
 
   value = {
-    ACR_NAME             = module.acr.name
-    ACR_LOGIN_SERVER     = module.acr.login_server
-    AKS_CLUSTER_NAME     = module.aks.name
-    AZURE_RESOURCE_GROUP = module.resource_group.name
-    KEY_VAULT_NAME       = module.key_vault.name
+    ACR_NAME                     = module.acr.name
+    ACR_LOGIN_SERVER             = module.acr.login_server
+    AKS_CLUSTER_NAME             = module.aks.name
+    AZURE_RESOURCE_GROUP         = module.resource_group.name
+    KEY_VAULT_NAME               = module.key_vault.name
+    KEY_VAULT_TENANT_ID          = data.azurerm_client_config.current.tenant_id
+    KEY_VAULT_CSI_IDENTITY_CLIENT_ID = module.aks.key_vault_csi_identity_client_id
   }
 }

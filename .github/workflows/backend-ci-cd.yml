@@ -19,6 +19,14 @@ env:
   AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
   AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
   KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+  # Off until the CSI driver's identity has been granted Key Vault Secrets
+  # User (terraform output key_vault_csi_identity_object_id) — see
+  # create_key_vault_csi_role_assignment in terraform/envs/dev/variables.tf.
+  # Flip this repo variable to "true" once that grant exists; nothing else
+  # in this workflow needs to change.
+  KEY_VAULT_CSI_ENABLED: ${{ vars.KEY_VAULT_CSI_ENABLED }}
+  KEY_VAULT_TENANT_ID: ${{ vars.KEY_VAULT_TENANT_ID }}
+  KEY_VAULT_CSI_IDENTITY_CLIENT_ID: ${{ vars.KEY_VAULT_CSI_IDENTITY_CLIENT_ID }}
   IMAGE_NAME: fitcart-backend
   K8S_NAMESPACE: fitcart
   HELM_RELEASE: fitcart-backend
@@ -170,7 +178,11 @@ jobs:
             --set image.tag="${{ needs.build.outputs.image_tag }}" \
             --set imagePullSecret="$IMAGE_PULL_SECRET" \
             --set db.user="$DB_USER" \
-            --set db.password="$DB_PASSWORD"
+            --set db.password="$DB_PASSWORD" \
+            --set keyVault.enabled="${KEY_VAULT_CSI_ENABLED:-false}" \
+            --set keyVault.name="$KEY_VAULT_NAME" \
+            --set keyVault.tenantId="$KEY_VAULT_TENANT_ID" \
+            --set keyVault.csiIdentityClientId="$KEY_VAULT_CSI_IDENTITY_CLIENT_ID"
 
       - name: Rollout summary
         if: always()

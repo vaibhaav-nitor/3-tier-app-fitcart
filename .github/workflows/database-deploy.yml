@@ -17,6 +17,11 @@ env:
   AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
   AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
   KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+  # Same toggle as backend-ci-cd.yml — see the comment there. Keep both
+  # releases on the same setting; they read identical vault entries.
+  KEY_VAULT_CSI_ENABLED: ${{ vars.KEY_VAULT_CSI_ENABLED }}
+  KEY_VAULT_TENANT_ID: ${{ vars.KEY_VAULT_TENANT_ID }}
+  KEY_VAULT_CSI_IDENTITY_CLIENT_ID: ${{ vars.KEY_VAULT_CSI_IDENTITY_CLIENT_ID }}
   K8S_NAMESPACE: fitcart
   HELM_RELEASE: fitcart-database
 
@@ -77,7 +82,11 @@ jobs:
             --wait \
             --timeout 10m \
             --set auth.username="$DB_USER" \
-            --set auth.password="$DB_PASSWORD"
+            --set auth.password="$DB_PASSWORD" \
+            --set keyVault.enabled="${KEY_VAULT_CSI_ENABLED:-false}" \
+            --set keyVault.name="$KEY_VAULT_NAME" \
+            --set keyVault.tenantId="$KEY_VAULT_TENANT_ID" \
+            --set keyVault.csiIdentityClientId="$KEY_VAULT_CSI_IDENTITY_CLIENT_ID"
 
       - name: Rollout summary
         if: always()

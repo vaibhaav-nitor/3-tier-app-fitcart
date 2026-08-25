@@ -14,10 +14,22 @@ spec:
       labels:
         app: backend
       annotations:
-        # Roll the pods when config or credentials change, which a plain
-        # `helm upgrade` would otherwise leave untouched.
+        # Roll the pods when config changes, which a plain `helm upgrade`
+        # would otherwise leave untouched.
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if not .Values.keyVault.enabled }}
+        # Static-secret path only: rolls the pods when the Secret rendered from
+        # --set values changes. In CSI mode the Secret is updated out-of-band by
+        # the driver, so Reloader (below) is what triggers the restart instead.
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if .Values.keyVault.enabled }}
+        # Reloader watches every ConfigMap/Secret referenced by this pod
+        # (configMapRef/secretRef below) and rolling-restarts it automatically
+        # when the CSI driver updates backend-secrets from a rotated Key Vault
+        # value. No helm upgrade or CI run involved.
+        reloader.stakater.com/auto: "true"
+        {{- end }}
     spec:
       {{- if .Values.imagePullSecret }}
       # Present only where the kubelet identity lacks AcrPull on the registry.
@@ -54,3 +66,21 @@ spec:
             failureThreshold: 3
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.keyVault.enabled }}
+          volumeMounts:
+            # Unused by the app (it reads DB_USER/DB_PASSWORD from envFrom).
+            # Mounting is only here because the CSI driver syncs into
+            # secretObjects.secretName (backend-secrets) solely for volumes it
+            # actually has mounted somewhere — the mount is what keeps the
+            # rotation poll running against a live pod.
+            - name: kv-secrets
+              mountPath: /mnt/secrets-store
+              readOnly: true
+      volumes:
+        - name: kv-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: backend-kv-secrets
+          {{- end }}

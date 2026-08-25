@@ -37,6 +37,22 @@ db:
 # Consumed by cors.allowed-origin in backend/src/main/resources/application.yml.
 frontendOrigin: http://frontend:80
 
+keyVault:
+  # false: db.user/db.password below are used, filled in by the deploy workflow
+  # from `az keyvault secret show` on every deploy. true: backend-secrets is
+  # instead synced live by the AKS Key Vault CSI driver (enable_key_vault_csi
+  # in terraform/modules/aks), and Reloader restarts the pod whenever the
+  # vault value changes — no redeploy needed. Requires the CSI driver's
+  # identity to already hold Key Vault Secrets User on the vault (see
+  # create_key_vault_csi_role_assignment in terraform/envs/dev/variables.tf).
+  enabled: false
+  # Key Vault name, e.g. kv-fitcart-dev-xxxxxx (terraform output key_vault_name).
+  name: ""
+  # terraform output key_vault_tenant_id.
+  tenantId: ""
+  # terraform output key_vault_csi_identity_client_id.
+  csiIdentityClientId: ""
+
 resources:
   requests:
     cpu: 200m
