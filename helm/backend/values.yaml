@@ -1,7 +1,7 @@
-replicaCount: 2
+replicaCount: 1
 image:
   repository: fitcart-backend
-  tag: v2.0.0
+  tag: v2.0.2
   pullPolicy: IfNotPresent
 imagePullSecret: ''
 serviceName: backend
