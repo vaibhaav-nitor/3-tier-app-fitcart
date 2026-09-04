@@ -85,8 +85,31 @@ deliberately left out. See *Not included* below.
 
 ---
 
+## ☁️ App Service (parallel deployment)
+
+The same application also deploys to Azure App Service for Containers, running
+side by side with the AKS deployment above — fully isolated infrastructure, not
+a replacement:
+
+| Path | What it is |
+|---|---|
+| [terraform/modules/app-service/](./terraform/modules/app-service) | App Service Plan + two Linux Web Apps (containers) |
+| [terraform/modules/postgresql/](./terraform/modules/postgresql) | Azure Database for PostgreSQL Flexible Server |
+| [terraform/envs/appservice/](./terraform/envs/appservice) | This environment's own state, ACR, Key Vault, database and App Service resources — none shared with `envs/dev` |
+| `terraform-appservice.yml`, `appservice-backend-ci-cd.yml`, `appservice-frontend-ci-cd.yml` | Provision and deploy this environment |
+
+Secrets (`postgres-user`, `postgres-password`) are read by each Web App directly
+from its own Key Vault via `@Microsoft.KeyVault(...)` app settings — no CI step
+or `--set` flag involved, unlike the AKS deployment's static-Secret path.
+
+Every resource name is distinct from `envs/dev` and `envs/mdbtest` (own ACR,
+Key Vault, database, resource names) so all three can run concurrently without
+collision. See `terraform/envs/appservice/appservice.tfvars` for the sequence
+to switch from ACR-admin-credential / unresolved-Key-Vault-reference fallbacks
+to the Terraform-managed role assignments, once granted.
+
+---
+
 ## 🧭 Not included
 
-App Service deployment (planned next, reusing the same VNet, ACR and Key Vault),
-Azure Database for PostgreSQL, private endpoints, ingress + TLS, Argo CD, and
-monitoring.
+Private endpoints, ingress + TLS, Argo CD, and monitoring.
