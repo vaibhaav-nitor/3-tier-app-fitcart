@@ -1,0 +1,143 @@
+name: "[appservice] Backend — Build & Deploy"
+
+# A parallel path to backend-ci-cd.yml, targeting the App Service environment
+# instead of AKS. Same source, same Dockerfile, pushed to a separate registry
+# and deployed to a separate Web App — the two pipelines never touch the same
+# resources, so they can run independently or from the same push.
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "backend/**"
+      - ".github/workflows/appservice-backend-ci-cd.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # APPSERVICE_-prefixed repository variables, from `terraform output
+  # workflow_env` in terraform/envs/appservice. Distinct from the unprefixed
+  # ones backend-ci-cd.yml reads and the MDBTEST_-prefixed ones
+  # backend-mdbtest.yml reads, so the three environments can never
+  # cross-target.
+  ACR_NAME: ${{ vars.APPSERVICE_ACR_NAME }}
+  ACR_LOGIN_SERVER: ${{ vars.APPSERVICE_ACR_LOGIN_SERVER }}
+  RESOURCE_GROUP: ${{ vars.APPSERVICE_RESOURCE_GROUP }}
+  APP_NAME: ${{ vars.APPSERVICE_BACKEND_APP_NAME }}
+  IMAGE_NAME: fitcart-backend
+
+jobs:
+  build:
+    name: Build & push image
+    runs-on: ubuntu-latest
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: meta
+        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}"}'
+
+      - name: ACR login
+        run: az acr login --name "$ACR_NAME"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: ./backend
+          severity: HIGH,CRITICAL
+          # Report-only: a test app should not be blocked by base-image CVEs.
+          exit-code: "0"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
+          severity: HIGH,CRITICAL
+          exit-code: "0"
+
+  deploy:
+    name: Deploy to App Service
+    runs-on: ubuntu-latest
+    needs: build
+
+    concurrency:
+      group: deploy-backend-appservice
+      cancel-in-progress: false
+
+    steps:
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}"}'
+
+      # Self-detecting, same as the AKS workflows' imagePullSecret step: the
+      # ACR admin user is enabled by Terraform only while
+      # use_acr_admin_credentials is true. Flipping that toggle to switch the
+      # Web App onto its managed identity needs no change here.
+      - name: Point the Web App at the new image
+        run: |
+          set -euo pipefail
+          image="${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${{ needs.build.outputs.image_tag }}"
+
+          admin=$(az acr show --name "$ACR_NAME" --query adminUserEnabled -o tsv)
+          if [ "$admin" = "true" ]; then
+            user=$(az acr credential show --name "$ACR_NAME" --query username -o tsv)
+            pass=$(az acr credential show --name "$ACR_NAME" --query "passwords[0].value" -o tsv)
+            echo "::add-mask::$pass"
+            az webapp config container set \
+              --name "$APP_NAME" \
+              --resource-group "$RESOURCE_GROUP" \
+              --docker-custom-image-name "$image" \
+              --docker-registry-server-url "https://${ACR_LOGIN_SERVER}" \
+              --docker-registry-server-user "$user" \
+              --docker-registry-server-password "$pass"
+            echo "Pulling with ACR admin credentials."
+          else
+            az webapp config container set \
+              --name "$APP_NAME" \
+              --resource-group "$RESOURCE_GROUP" \
+              --docker-custom-image-name "$image" \
+              --docker-registry-server-url "https://${ACR_LOGIN_SERVER}"
+            echo "Pulling via the Web App's managed identity (AcrPull role assignment)."
+          fi
+
+      - name: Restart Web App
+        run: az webapp restart --name "$APP_NAME" --resource-group "$RESOURCE_GROUP"
+
+      - name: Rollout summary
+        if: always()
+        run: |
+          {
+            echo "### Backend deploy — App Service"
+            echo ""
+            echo "Image tag: \`${{ needs.build.outputs.image_tag }}\`"
+            echo ""
+            echo "URL: https://$(az webapp show --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" --query defaultHostName -o tsv)"
+          } >> "$GITHUB_STEP_SUMMARY"
