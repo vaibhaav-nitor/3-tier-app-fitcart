@@ -109,6 +109,24 @@ variable "use_image_pull_secret" {
   default     = false
 }
 
+variable "enable_key_vault_csi" {
+  description = "Enable the AKS-managed Secrets Store CSI driver with the Azure Key Vault provider and rotation. Safe on its own — creates the driver and its identity, but nothing consumes it until a SecretProviderClass is added to a chart."
+  type        = bool
+  default     = false
+}
+
+variable "key_vault_csi_rotation_interval" {
+  description = "How often the CSI driver polls Key Vault for a changed secret value."
+  type        = string
+  default     = "2m"
+}
+
+variable "create_key_vault_csi_role_assignment" {
+  description = "Have Terraform grant the CSI driver's identity Key Vault Secrets User. Requires Owner or RBAC Administrator; Contributor cannot create it. The identity does not exist until enable_key_vault_csi has already been applied once, so this cannot be turned on in the same apply that enables the driver."
+  type        = bool
+  default     = false
+}
+
 variable "postgres_user" {
   description = "Postgres username stored in Key Vault. The password is generated, not configured."
   type        = string

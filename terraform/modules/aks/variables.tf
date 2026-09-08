@@ -76,6 +76,18 @@ variable "dns_service_ip" {
   default     = "10.100.0.10"
 }
 
+variable "enable_key_vault_csi" {
+  description = "Enable the AKS-managed Secrets Store CSI driver with the Azure Key Vault provider and rotation. Safe to enable on its own — nothing consumes it until a SecretProviderClass references it, so this alone does not affect running workloads."
+  type        = bool
+  default     = false
+}
+
+variable "key_vault_csi_rotation_interval" {
+  description = "How often the CSI driver polls Key Vault for a changed secret value. Only used when enable_key_vault_csi is true."
+  type        = string
+  default     = "2m"
+}
+
 variable "tags" {
   description = "Tags applied to the cluster."
   type        = map(string)

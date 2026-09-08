@@ -28,6 +28,16 @@ output "vnet_name" {
   value       = module.networking.vnet_name
 }
 
+output "key_vault_csi_identity_object_id" {
+  description = "Object ID of the Key Vault CSI driver's identity. Give this to whoever grants roles: it needs Key Vault Secrets User on the vault before any SecretProviderClass can read from it. Null until enable_key_vault_csi has been applied at least once."
+  value       = module.aks.key_vault_csi_identity_object_id
+}
+
+output "key_vault_csi_identity_client_id" {
+  description = "Client ID of the same identity — needed later in a SecretProviderClass's userAssignedIdentityID parameter, not for the role grant itself."
+  value       = module.aks.key_vault_csi_identity_client_id
+}
+
 # Convenience: everything the GitHub Actions `env:` blocks need, in one place.
 output "workflow_env" {
   description = "Values to copy into the workflow env: blocks."
