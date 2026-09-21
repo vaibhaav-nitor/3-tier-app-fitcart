@@ -1,0 +1,98 @@
+# Values for the prometheus-community/kube-prometheus-stack chart, trimmed to
+# fit aks-fitcart-dev's single Standard_D2s_v3 node (~1.9 vCPU / ~5.5Gi
+# allocatable). The fitcart backend, frontend, and in-cluster Postgres pods
+# already use roughly 350m CPU / 850Mi there (see
+# terraform/envs/dev/dev.tfvars) — everything below is sized to leave that
+# workload untouched, not to the chart's own (much larger) defaults.
+#
+# See monitoring/README.md for install/access/teardown instructions.
+
+alertmanager:
+  # No notification channels configured yet. Turning this on later is a
+  # one-line flip here plus a receivers config — no redeploy of anything else
+  # in this stack or the app.
+  enabled: false
+
+grafana:
+  adminUser: admin
+  # No adminPassword set on purpose — the chart generates one into the
+  # kube-prometheus-stack-grafana Secret on install. See monitoring/README.md
+  # for how to read it back.
+  persistence:
+    # Ephemeral. Dashboards are provisioned as code via the sidecar below, so
+    # a pod restart losing ad-hoc UI edits is an acceptable trade for one
+    # less PVC on a constrained node.
+    enabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  sidecar:
+    dashboards:
+      # Auto-loads any ConfigMap labeled grafana_dashboard: "1" in this
+      # namespace — see monitoring/dashboards/.
+      enabled: true
+      label: grafana_dashboard
+      searchNamespace: monitoring
+  # ClusterIP only — Grafana is reached with `kubectl port-forward`, not a
+  # public LoadBalancer/Ingress. See monitoring/README.md.
+  service:
+    type: ClusterIP
+
+prometheus:
+  prometheusSpec:
+    # Short retention on a small volume — this is operational visibility for
+    # a test cluster, not a long-term metrics archive.
+    retention: 24h
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 768Mi
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: managed-csi
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 8Gi
+    # Left at the chart default (true): Prometheus only selects
+    # ServiceMonitors/PodMonitors carrying this release's own label, which is
+    # exactly the `release: kube-prometheus-stack` label
+    # helm/backend/templates/servicemonitor.yaml sets. Explicit here so the
+    # dependency on that label is obvious rather than implicit.
+    serviceMonitorSelectorNilUsesHelmValues: true
+    podMonitorSelectorNilUsesHelmValues: true
+
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 50m
+      memory: 64Mi
+
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 20Mi
+    limits:
+      cpu: 50m
+      memory: 50Mi

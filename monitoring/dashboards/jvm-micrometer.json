@@ -1,0 +1,90 @@
+{
+  "title": "FitCart Backend — JVM & HTTP",
+  "uid": "fitcart-backend-jvm",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "tags": ["fitcart", "backend", "jvm"],
+  "panels": [
+    {
+      "id": 1,
+      "title": "HTTP request rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum by (uri, status) (rate(http_server_requests_seconds_count{application=\"fitcart-backend\"}[5m]))",
+          "legendFormat": "{{ uri }} [{{ status }}]"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "HTTP request latency (p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_seconds_bucket{application=\"fitcart-backend\"}[5m])))",
+          "legendFormat": "{{ uri }}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "JVM heap used",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum by (id) (jvm_memory_used_bytes{application=\"fitcart-backend\", area=\"heap\"})",
+          "legendFormat": "{{ id }}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Process CPU usage",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "max": 1, "min": 0 }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "process_cpu_usage{application=\"fitcart-backend\"}",
+          "legendFormat": "cpu"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "GC pause time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum by (action, cause) (rate(jvm_gc_pause_seconds_sum{application=\"fitcart-backend\"}[5m]))",
+          "legendFormat": "{{ action }} ({{ cause }})"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Live threads",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "jvm_threads_live_threads{application=\"fitcart-backend\"}",
+          "legendFormat": "live"
+        }
+      ]
+    }
+  ]
+}

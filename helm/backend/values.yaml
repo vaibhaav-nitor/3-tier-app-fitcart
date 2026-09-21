@@ -48,3 +48,10 @@ resources:
   limits:
     cpu: 1000m
     memory: 1Gi
+
+monitoring:
+  # False until kube-prometheus-stack (and its ServiceMonitor CRD) is
+  # installed in the cluster — see monitoring/README.md. The deploy workflow
+  # flips this on with --set once that's confirmed, the same way
+  # imagePullSecret above is threaded in.
+  enabled: false

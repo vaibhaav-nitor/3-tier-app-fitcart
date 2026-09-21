@@ -1,0 +1,120 @@
+name: "[dev] Monitoring — Install/Upgrade Prometheus & Grafana"
+
+# Manual dispatch only, like the mdbtest infra workflows — this is cluster
+# add-on lifecycle, not something that should install itself on every push.
+# Installs kube-prometheus-stack into aks-fitcart-dev, provisions the backend
+# JVM dashboard, then flips monitoring.enabled on for the existing
+# fitcart-backend release so its ServiceMonitor gets created. See
+# monitoring/README.md for background and access instructions.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
+  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+
+  MONITORING_NAMESPACE: monitoring
+  APP_NAMESPACE: fitcart
+  BACKEND_HELM_RELEASE: fitcart-backend
+  KUBE_PROMETHEUS_STACK_VERSION: "62.7.0"
+
+jobs:
+  install:
+    name: Install/upgrade monitoring stack
+    runs-on: ubuntu-latest
+
+    concurrency:
+      group: monitoring-dev
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}"}'
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AKS_CLUSTER_NAME" \
+            --overwrite-existing
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Add prometheus-community repo
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
+
+      - name: Helm upgrade — kube-prometheus-stack
+        run: |
+          helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+            --namespace "$MONITORING_NAMESPACE" \
+            --create-namespace \
+            --version "$KUBE_PROMETHEUS_STACK_VERSION" \
+            --wait \
+            --timeout 10m \
+            -f monitoring/values.yaml
+
+      # A ConfigMap rather than committing a YAML-wrapped copy of the JSON —
+      # avoids two copies of the same dashboard drifting apart. The
+      # grafana_dashboard=1 label is what the chart's sidecar (enabled in
+      # monitoring/values.yaml) watches for.
+      - name: Provision the backend JVM dashboard
+        run: |
+          kubectl create configmap fitcart-backend-dashboard \
+            --from-file=jvm-micrometer.json=monitoring/dashboards/jvm-micrometer.json \
+            --namespace "$MONITORING_NAMESPACE" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl label configmap fitcart-backend-dashboard \
+            grafana_dashboard=1 \
+            --namespace "$MONITORING_NAMESPACE" \
+            --overwrite
+
+      # Now that the ServiceMonitor CRD exists, turn on the backend's
+      # ServiceMonitor. --reuse-values keeps db.host/user/password and every
+      # other value from the last real deploy — only monitoring.enabled changes.
+      - name: Enable the backend ServiceMonitor
+        run: |
+          if helm status "$BACKEND_HELM_RELEASE" --namespace "$APP_NAMESPACE" >/dev/null 2>&1; then
+            helm upgrade "$BACKEND_HELM_RELEASE" ./helm/backend \
+              --namespace "$APP_NAMESPACE" \
+              --reuse-values \
+              --set monitoring.enabled=true \
+              --wait \
+              --timeout 5m
+          else
+            echo "No $BACKEND_HELM_RELEASE release found in $APP_NAMESPACE yet — skipping." \
+              "Re-run this workflow after the backend has been deployed at least once."
+          fi
+
+      - name: Access summary
+        if: always()
+        run: |
+          {
+            echo "### Monitoring stack — dev"
+            echo ""
+            echo '```'
+            kubectl get pods -n "$MONITORING_NAMESPACE" -o wide || true
+            echo '```'
+            echo ""
+            echo "**Grafana** (internal only — no public IP):"
+            echo '```'
+            echo "kubectl port-forward svc/kube-prometheus-stack-grafana 3000:80 -n $MONITORING_NAMESPACE"
+            echo "# then open http://localhost:3000  (user: admin)"
+            echo 'kubectl get secret kube-prometheus-stack-grafana -n '"$MONITORING_NAMESPACE"' -o jsonpath="{.data.admin-password}" | base64 -d'
+            echo '```'
+            echo ""
+            echo "**Prometheus**:"
+            echo '```'
+            echo "kubectl port-forward svc/kube-prometheus-stack-prometheus 9090:9090 -n $MONITORING_NAMESPACE"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
