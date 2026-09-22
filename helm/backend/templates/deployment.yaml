@@ -5,7 +5,11 @@ metadata:
   labels:
     app: backend
 spec:
+  {{- if not .Values.autoscaling.enabled }}
+  # Omitted when the HPA owns replica count — otherwise every `helm upgrade`
+  # would reset it back to replicaCount and fight the autoscaler.
   replicas: {{ .Values.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       app: backend
@@ -18,16 +22,55 @@ spec:
         # `helm upgrade` would otherwise leave untouched.
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
+      serviceAccountName: {{ include "backend.serviceAccountName" . }}
       {{- if .Values.imagePullSecret }}
       # Present only where the kubelet identity lacks AcrPull on the registry.
       imagePullSecrets:
         - name: {{ .Values.imagePullSecret }}
       {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        # The backend crash-loops on a refused connection rather than retrying,
+        # so this keeps the main container from starting until Postgres is
+        # actually accepting connections — matters most right after a fresh
+        # install, when both charts roll out at once.
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z -w2 {{ .Values.db.host }} {{ .Values.db.port }}; do
+                echo "waiting for {{ .Values.db.host }}:{{ .Values.db.port }}"
+                sleep 2
+              done
       containers:
         - name: backend
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           ports:
             - name: http
               containerPort: {{ .Values.containerPort }}
@@ -39,18 +82,42 @@ spec:
           # tcpSocket rather than an HTTP health endpoint: this app does not
           # depend on spring-boot-starter-actuator, so /actuator/health does not
           # exist. Add the starter first if you want a real health check.
+          startupProbe:
+            tcpSocket:
+              port: {{ .Values.containerPort }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
           readinessProbe:
             tcpSocket:
               port: {{ .Values.containerPort }}
-            initialDelaySeconds: 20
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 6
           livenessProbe:
             tcpSocket:
               port: {{ .Values.containerPort }}
-            initialDelaySeconds: 60
             periodSeconds: 20
             failureThreshold: 3
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            # readOnlyRootFilesystem above means the JVM needs somewhere
+            # writable for its own temp files.
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.secretProviderClass.enabled }}
+            - name: kv-secrets
+              mountPath: /mnt/secrets
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.secretProviderClass.enabled }}
+        - name: kv-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: backend-kv
+        {{- end }}

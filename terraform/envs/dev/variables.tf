@@ -120,3 +120,58 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+# ── Cluster hardening / observability ──────────────────────────────────────
+
+variable "network_policy" {
+  description = "Network policy engine passed to the aks module. See terraform/modules/aks/variables.tf."
+  type        = string
+  default     = "azure"
+}
+
+variable "enable_workload_identity" {
+  description = "Enables OIDC issuer + workload identity on the cluster. Free and additive."
+  type        = bool
+  default     = true
+}
+
+variable "enable_key_vault_csi" {
+  description = "Enables the Key Vault CSI driver add-on. Free to enable; create_key_vault_csi_role_assignment below controls whether it can actually read anything."
+  type        = bool
+  default     = true
+}
+
+variable "create_key_vault_csi_role_assignment" {
+  description = "Grant the CSI driver's managed identity Key Vault Secrets User on the vault. Same Contributor wall as create_acr_role_assignment: this subscription's service principal cannot create role assignments, so this stays false until that changes or the grant is made out-of-band."
+  type        = bool
+  default     = false
+}
+
+variable "enable_azure_policy" {
+  description = "Enables the Azure Policy (Gatekeeper) add-on."
+  type        = bool
+  default     = true
+}
+
+variable "enable_defender_for_containers" {
+  description = "Enables the Microsoft Defender for Containers subscription-wide pricing plan (image scanning + runtime threat detection). Off by default: it is a paid plan, and enabling a Defender plan needs Security Admin (or Owner) on the subscription, which this service principal does not hold — same wall as the ACR role assignment below."
+  type        = bool
+  default     = false
+}
+
+variable "automatic_channel_upgrade" {
+  description = "Cluster upgrade channel passed to the aks module."
+  type        = string
+  default     = "patch"
+}
+
+variable "additional_node_pools" {
+  description = "Extra user node pools. Empty by default — see the note on this in terraform/modules/aks/variables.tf about current vCPU quota."
+  type = map(object({
+    vm_size    = string
+    node_count = number
+    mode       = optional(string, "User")
+    priority   = optional(string, "Regular")
+  }))
+  default = {}
+}

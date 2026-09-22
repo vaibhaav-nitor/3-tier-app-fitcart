@@ -23,3 +23,88 @@ resources:
   limits:
     cpu: 1000m
     memory: 1Gi
+
+# Enforced only on clusters with a network policy engine (Azure NPM, Calico or
+# Cilium); on a cluster without one the policy is created but has no effect.
+networkPolicy:
+  enabled: true
+  # Off while the database is the in-cluster Postgres. Turn on when db.host is
+  # an Azure Database for PostgreSQL server, and set cidr to its address —
+  # `nslookup <server>.postgres.database.azure.com`. The default is wide open
+  # on the Postgres port only.
+  externalDatabase:
+    enabled: false
+    cidr: 0.0.0.0/0
+
+serviceAccount:
+  create: true
+  name: ""
+  # No container here calls the Kubernetes API, so the default-mounted token
+  # would be unused attack surface.
+  automountToken: false
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+# The JVM only ever needs to write to /tmp; see the emptyDir volume in
+# deployment.yaml that readOnlyRootFilesystem above requires.
+
+priorityClassName: ""
+nodeSelector: {}
+tolerations: []
+# One item is enough to demonstrate the field without fighting the single-node
+# dev cluster, where every replica lands on the same node regardless.
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app: backend
+
+terminationGracePeriodSeconds: 30
+
+startupProbe:
+  # Gives the JVM up to 60s (12 x 5s) to come up before the readiness/liveness
+  # probes start counting failures, without inflating their own delays.
+  periodSeconds: 5
+  failureThreshold: 12
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
+
+podAnnotations: {}
+# Example, once kube-prometheus-stack or a bare Prometheus is scraping by
+# annotation rather than a ServiceMonitor:
+#   prometheus.io/scrape: "true"
+#   prometheus.io/path: "/actuator/prometheus"
+#   prometheus.io/port: "8080"
+
+# Mounts the same two Key Vault secrets backend-secrets already holds,
+# directly via the CSI driver — an alternative to the deploy workflow reading
+# them and passing them through `helm --set`. Needs enable_key_vault_csi AND
+# create_key_vault_csi_role_assignment = true in terraform/envs/dev; off until
+# both are confirmed live, same pattern as networkPolicy.externalDatabase.
+secretProviderClass:
+  enabled: false
+  keyVaultName: ""
+  tenantId: ""
+  userAssignedIdentityID: ""

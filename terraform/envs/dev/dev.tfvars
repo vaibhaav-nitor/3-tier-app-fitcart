@@ -74,6 +74,28 @@ create_key_vault_role_assignment = false
 create_acr_role_assignment = false
 use_image_pull_secret      = true
 
+# Free/low-cost cluster hardening, on by default: network policy engine so the
+# Helm charts' NetworkPolicy manifests actually enforce, workload identity,
+# the Key Vault CSI driver add-on, the Azure Policy add-on, and patch-level
+# auto-upgrades.
+network_policy             = "azure"
+enable_workload_identity   = true
+enable_key_vault_csi       = true
+enable_azure_policy        = true
+automatic_channel_upgrade  = "patch"
+
+# Same Contributor wall as create_acr_role_assignment above — this service
+# principal cannot create role assignments, so the CSI driver is enabled but
+# cannot yet read Key Vault, and the paid Defender for Containers plan (which
+# additionally needs Security Admin) is left off entirely. Revisit both once
+# RBAC Administrator is granted on the resource group.
+create_key_vault_csi_role_assignment = false
+enable_defender_for_containers       = false
+
+# Empty — see the note on this in terraform/modules/aks/variables.tf. There is
+# no vCPU quota headroom for another node pool right now.
+additional_node_pools = {}
+
 tags = {
   owner   = "platform"
   purpose = "testing"

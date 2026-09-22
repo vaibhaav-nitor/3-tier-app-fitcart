@@ -5,7 +5,11 @@ metadata:
   labels:
     app: frontend
 spec:
+  {{- if not .Values.autoscaling.enabled }}
+  # Omitted when the HPA owns replica count — otherwise every `helm upgrade`
+  # would reset it back to replicaCount and fight the autoscaler.
   replicas: {{ .Values.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       app: frontend
@@ -15,20 +19,52 @@ spec:
         app: frontend
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
+      serviceAccountName: {{ include "frontend.serviceAccountName" . }}
       {{- if .Values.imagePullSecret }}
       # Present only where the kubelet identity lacks AcrPull on the registry.
       imagePullSecrets:
         - name: {{ .Values.imagePullSecret }}
       {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       containers:
         - name: frontend
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          lifecycle:
+            preStop:
+              # Gives the LoadBalancer/Service a moment to stop routing new
+              # requests here before nginx actually stops accepting them.
+              exec:
+                command: ["sh", "-c", "sleep 5"]
           ports:
             - name: http
               containerPort: {{ .Values.containerPort }}
           # nginx serves the SPA at /, so a plain GET is a real health signal.
+          # No startupProbe here: nginx starts in well under a second, so one
+          # would only add an extra object with nothing to gate.
           readinessProbe:
             httpGet:
               path: /
@@ -47,7 +83,21 @@ spec:
             - name: frontend-config
               mountPath: /usr/share/nginx/html/config.js
               subPath: config.js
+            # readOnlyRootFilesystem above means nginx needs these three
+            # provided separately — none of them need to persist.
+            - name: cache
+              mountPath: /var/cache/nginx
+            - name: run
+              mountPath: /var/run
+            - name: tmp
+              mountPath: /tmp
       volumes:
         - name: frontend-config
           configMap:
             name: frontend-config
+        - name: cache
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

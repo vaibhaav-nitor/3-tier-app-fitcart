@@ -28,6 +28,21 @@ output "vnet_name" {
   value       = module.networking.vnet_name
 }
 
+output "log_analytics_workspace_name" {
+  description = "Workspace backing the Container Insights add-on."
+  value       = azurerm_log_analytics_workspace.aks.name
+}
+
+output "oidc_issuer_url" {
+  description = "OIDC issuer URL, for federating a workload identity."
+  value       = module.aks.oidc_issuer_url
+}
+
+output "key_vault_csi_identity_client_id" {
+  description = "Client ID of the Key Vault CSI driver's managed identity, for a SecretProviderClass's userAssignedIdentityID."
+  value       = module.aks.key_vault_csi_identity_client_id
+}
+
 # Convenience: everything the GitHub Actions `env:` blocks need, in one place.
 output "workflow_env" {
   description = "Values to copy into the workflow env: blocks."

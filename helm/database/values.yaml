@@ -29,3 +29,54 @@ resources:
   limits:
     cpu: 500m
     memory: 512Mi
+
+# Enforced only on clusters with a network policy engine (Azure NPM, Calico or
+# Cilium); on a cluster without one the policy is created but has no effect.
+networkPolicy:
+  enabled: true
+
+serviceAccount:
+  create: true
+  name: ""
+  automountToken: false
+
+# The postgres:14 image already runs as uid 999 (the postgres user) by
+# default; this makes that explicit instead of relying on the image default.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 999
+  runAsGroup: 999
+  fsGroup: 999
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+priorityClassName: ""
+nodeSelector: {}
+tolerations: []
+
+# Long enough for Postgres to run a clean shutdown checkpoint instead of being
+# killed mid-write.
+terminationGracePeriodSeconds: 60
+
+# Off by default: with a single replica, minAvailable: 1 blocks every
+# voluntary disruption (node drain, cluster upgrade) outright rather than just
+# limiting it — a real trade-off for a stateful, single-writer Postgres that
+# a 2+ replica web tier doesn't have. Turn on only once that trade-off is
+# deliberately accepted.
+podDisruptionBudget:
+  enabled: false
+  maxUnavailable: 0
+
+# Same Key Vault CSI pattern as helm/backend — off until enable_key_vault_csi
+# AND create_key_vault_csi_role_assignment are both true in terraform/envs/dev.
+secretProviderClass:
+  enabled: false
+  keyVaultName: ""
+  tenantId: ""
+  userAssignedIdentityID: ""

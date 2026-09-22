@@ -108,7 +108,20 @@ resource "azurerm_key_vault_secret" "frontend_hero_highlight_text" {
   }
 }
 
-# 5. AKS, joined to the subnet created above.
+# 5. Log Analytics workspace, feeding the AKS Container Insights add-on below.
+# A small, cheap addition on its own — cost scales with the log volume a
+# single-node dev cluster actually produces, not a fixed monthly charge.
+resource "azurerm_log_analytics_workspace" "aks" {
+  name                = "log-${local.prefix}"
+  resource_group_name = module.resource_group.name
+  location            = module.resource_group.location
+  sku                 = "PerGB2018"
+  retention_in_days   = 30
+
+  tags = local.tags
+}
+
+# 6. AKS, joined to the subnet created above.
 #
 # The cluster object itself lands in the resource group above, but AKS ALWAYS
 # creates a second, Azure-managed group for the node infrastructure — the VMSS,
@@ -131,7 +144,44 @@ module "aks" {
   node_vm_size             = var.node_vm_size
   node_count               = var.node_count
 
+  # enable_auto_scaling / min_count / max_count / zones / authorized_ip_ranges /
+  # private_cluster_enabled / local_account_disabled / disk_encryption_set_id
+  # are all left at the module's own defaults (off/public/unrestricted) — see
+  # terraform/modules/aks/variables.tf for why each one stays off here.
+  network_policy             = var.network_policy
+  enable_workload_identity   = var.enable_workload_identity
+  enable_key_vault_csi       = var.enable_key_vault_csi
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.aks.id
+  enable_azure_policy        = var.enable_azure_policy
+  automatic_channel_upgrade  = var.automatic_channel_upgrade
+  additional_node_pools      = var.additional_node_pools
+
   tags = local.tags
+}
+
+# Lets the Key Vault CSI driver's identity read the Postgres credentials
+# directly, instead of the deploy workflow reading them and passing them
+# through `helm --set`. Same wall as AcrPull below: creating a role assignment
+# needs Owner or RBAC Administrator, which this service principal does not
+# hold, so this stays off until create_key_vault_csi_role_assignment is true.
+resource "azurerm_role_assignment" "aks_key_vault_csi" {
+  count = var.create_key_vault_csi_role_assignment ? 1 : 0
+
+  scope                 = module.key_vault.id
+  role_definition_name  = "Key Vault Secrets User"
+  principal_id          = module.aks.key_vault_csi_identity_object_id
+}
+
+# Microsoft Defender for Containers — a subscription-wide, paid pricing plan,
+# not a per-cluster setting. Enabling a Defender plan needs Security Admin (or
+# Owner) on the subscription; this service principal holds Contributor only,
+# so this resource does not even attempt to create unless explicitly turned on
+# by someone who has confirmed that role is granted.
+resource "azurerm_security_center_subscription_pricing" "containers" {
+  count = var.enable_defender_for_containers ? 1 : 0
+
+  tier          = "Standard"
+  resource_type = "Containers"
 }
 
 # This is what lets the cluster pull from ACR with no imagePullSecrets anywhere

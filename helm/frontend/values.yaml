@@ -37,3 +37,68 @@ resources:
   limits:
     cpu: 200m
     memory: 128Mi
+
+# Enforced only on clusters with a network policy engine (Azure NPM, Calico or
+# Cilium); on a cluster without one the policy is created but has no effect.
+networkPolicy:
+  enabled: true
+
+serviceAccount:
+  create: true
+  name: ""
+  automountToken: false
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 101 # the nginx image's own "nginx" user
+  runAsGroup: 101
+  fsGroup: 101
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+priorityClassName: ""
+nodeSelector: {}
+tolerations: []
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app: frontend
+
+# nginx exits fast, so this is mostly about giving in-flight requests a moment
+# rather than working around a slow shutdown.
+terminationGracePeriodSeconds: 15
+
+podDisruptionBudget:
+  # Off by default: with the chart's default replicaCount of 1, minAvailable: 1
+  # would block all voluntary disruption. Turn on once replicaCount > 1.
+  enabled: false
+  minAvailable: 1
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
+
+podAnnotations: {}
+
+# An alternative entry point to the existing LoadBalancer Service — a real
+# hostname and managed TLS instead of a bare IP. Off by default: it needs an
+# ingress controller and cert-manager already running in the cluster, neither
+# of which this repo provisions today.
+ingress:
+  enabled: false
+  className: nginx
+  host: ""
+  tls:
+    enabled: false
+    secretName: frontend-tls

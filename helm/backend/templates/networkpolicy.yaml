@@ -1,0 +1,55 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend
+  labels:
+    app: backend
+spec:
+  podSelector:
+    matchLabels:
+      app: backend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Only the frontend's nginx reaches the API.
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+      ports:
+        - protocol: TCP
+          port: {{ .Values.containerPort }}
+  egress:
+    # In-cluster Postgres (helm/database).
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: {{ .Values.db.port }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- if .Values.networkPolicy.externalDatabase.enabled }}
+    # Azure Database for PostgreSQL Flexible Server is reached over its public
+    # endpoint, not a pod, so it can only be matched by IP. Postgres port only.
+    - to:
+        - ipBlock:
+            cidr: {{ .Values.networkPolicy.externalDatabase.cidr }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.db.port }}
+    {{- end }}
+{{- end }}

@@ -1,0 +1,46 @@
+{{- if .Values.networkPolicy.enabled }}
+# Selecting the frontend pods with both policyTypes isolates them: only the
+# rules below are allowed, everything else is denied.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend
+  labels:
+    app: frontend
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # The app's public entry point (Service type LoadBalancer). Source IPs are
+    # arbitrary internet clients and, with the default externalTrafficPolicy,
+    # SNAT'd node IPs, so the source cannot be narrowed.
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.containerPort }}
+  egress:
+    # nginx proxies /api/ to http://backend:8080 (frontend/nginx.conf).
+    - to:
+        - podSelector:
+            matchLabels:
+              app: backend
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Resolving the `backend` Service name.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}

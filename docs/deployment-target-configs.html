@@ -1,0 +1,602 @@
+<title>AKS, App Service & VM Configurations</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+  :root {
+    --paper: #F3F4F0;
+    --surface: #FFFFFF;
+    --ink: #181C16;
+    --ink-soft: #565E53;
+    --ink-faint: #8B9285;
+    --line: #DEE2D8;
+    --line-soft: #EAEDE5;
+
+    --aks: #2A6E68;
+    --aks-soft: #E3EEEC;
+    --appsvc: #7550B8;
+    --appsvc-soft: #ECE6F7;
+    --vm: #B15A25;
+    --vm-soft: #F5E7DC;
+
+    --code-bg: #EEF1EA;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #12140F;
+      --surface: #191C15;
+      --ink: #E9ECE3;
+      --ink-soft: #A6AC9C;
+      --ink-faint: #6C7264;
+      --line: #2B2F25;
+      --line-soft: #22261D;
+
+      --aks: #6FC2B8;
+      --aks-soft: #1B2C29;
+      --appsvc: #B4A0E8;
+      --appsvc-soft: #251F35;
+      --vm: #E8A374;
+      --vm-soft: #2E2116;
+
+      --code-bg: #1E2118;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #12140F;
+    --surface: #191C15;
+    --ink: #E9ECE3;
+    --ink-soft: #A6AC9C;
+    --ink-faint: #6C7264;
+    --line: #2B2F25;
+    --line-soft: #22261D;
+
+    --aks: #6FC2B8;
+    --aks-soft: #1B2C29;
+    --appsvc: #B4A0E8;
+    --appsvc-soft: #251F35;
+    --vm: #E8A374;
+    --vm-soft: #2E2116;
+
+    --code-bg: #1E2118;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+  }
+
+  .wrap {
+    max-width: 1220px;
+    margin: 0 auto;
+    padding: 56px 20px 90px;
+  }
+
+  header.page-head {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  h1 {
+    font-family: "Archivo", ui-sans-serif, sans-serif;
+    font-weight: 800;
+    font-size: clamp(28px, 4vw, 38px);
+    letter-spacing: -0.01em;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .dek {
+    max-width: 68ch;
+    color: var(--ink-soft);
+    font-size: 15px;
+    margin: 0;
+  }
+
+  .note {
+    margin-top: 6px;
+    padding: 12px 16px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--ink-soft);
+    max-width: 78ch;
+  }
+  .note code {
+    font-family: "IBM Plex Mono", monospace;
+    background: var(--code-bg);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--ink);
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin: 28px 0 22px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--ink-soft);
+    font-weight: 500;
+  }
+  .swatch {
+    width: 11px;
+    height: 11px;
+    border-radius: 3px;
+    background: var(--c);
+    flex-shrink: 0;
+  }
+
+  .targets {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 22px;
+    align-items: start;
+  }
+
+  .target {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .target-head {
+    padding: 18px 20px;
+    background: var(--accent-soft);
+    border-bottom: 1px solid var(--line);
+  }
+  .target-kind {
+    display: block;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 3px;
+    font-weight: 600;
+  }
+  .target-head h2 {
+    font-family: "Archivo", sans-serif;
+    font-weight: 800;
+    font-size: 21px;
+    margin: 0;
+    color: var(--ink);
+  }
+
+  .phase {
+    padding: 18px 20px 6px;
+  }
+  .phase + .phase {
+    border-top: 1px solid var(--line-soft);
+    padding-top: 18px;
+  }
+
+  .phase-title {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: var(--accent);
+    margin: 0 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .phase-title::before {
+    content: "";
+    width: 16px;
+    height: 1.5px;
+    background: var(--accent);
+    display: inline-block;
+  }
+
+  .group { margin-bottom: 16px; }
+  .group:last-child { margin-bottom: 4px; }
+
+  .cat {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-faint);
+    margin: 0 0 8px;
+  }
+
+  .items {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin: 0;
+  }
+
+  .item {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .item dt {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink);
+    background: var(--code-bg);
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 4px;
+    width: fit-content;
+    margin-bottom: 2px;
+  }
+
+  .item dd {
+    margin: 0;
+    font-size: 13px;
+    color: var(--ink-soft);
+    line-height: 1.45;
+  }
+
+  footer.page-foot {
+    margin-top: 40px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+    font-family: "IBM Plex Mono", monospace;
+    color: var(--ink-faint);
+  }
+</style>
+
+<div class="wrap">
+  <header class="page-head">
+    <span class="eyebrow">Infrastructure reference</span>
+    <h1>What else can be configured — AKS, App Service, and a VM</h1>
+    <p class="dek">Provisioning options for each compute target, and the deployment-time options once the app is actually running on it. Grouped the same way across all three so they're easy to compare.</p>
+  </header>
+
+  <div class="note">
+    The <b>AKS</b> column reflects real gaps checked against this repo's <code>terraform/modules/aks/main.tf</code> and Helm charts — no <code>network_policy</code>, no diagnostic settings, no <code>securityContext</code> on any pod today. <b>App Service</b> and <b>VM</b> are general Azure practice — this repo currently has no VM deployment and the App Service module lives on a different branch.
+  </div>
+
+  <div class="legend">
+    <span class="legend-item"><span class="swatch" style="--c:var(--aks)"></span>AKS (Kubernetes)</span>
+    <span class="legend-item"><span class="swatch" style="--c:var(--appsvc)"></span>Azure App Service</span>
+    <span class="legend-item"><span class="swatch" style="--c:var(--vm)"></span>Virtual Machine</span>
+  </div>
+
+  <div class="targets">
+
+    <!-- AKS -->
+    <section class="target" style="--accent:var(--aks); --accent-soft:var(--aks-soft)">
+      <header class="target-head">
+        <span class="target-kind">Kubernetes</span>
+        <h2>AKS cluster</h2>
+      </header>
+
+      <div class="phase">
+        <h3 class="phase-title">Provisioning the cluster</h3>
+
+        <div class="group">
+          <p class="cat">Networking</p>
+          <dl class="items">
+            <div class="item"><dt>network_policy</dt><dd>Azure NPM or Cilium. Without it, any NetworkPolicy manifest is accepted but never enforced.</dd></div>
+            <div class="item"><dt>authorized_ip_ranges / private_cluster</dt><dd>Restrict or remove the public API server endpoint.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Identity</p>
+          <dl class="items">
+            <div class="item"><dt>local_account_disabled</dt><dd>Forces Azure AD auth for kubectl access instead of the static admin cert.</dd></div>
+            <div class="item"><dt>oidc_issuer_enabled</dt><dd>Workload identity — pods get Azure credentials without long-lived secrets.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Scaling</p>
+          <dl class="items">
+            <div class="item"><dt>enable_auto_scaling</dt><dd>Min/max node count, instead of the fixed <code>node_count</code> this module uses today.</dd></div>
+            <div class="item"><dt>additional node pools</dt><dd>Separate system and user pools, or a spot pool for non-critical workloads.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Observability</p>
+          <dl class="items">
+            <div class="item"><dt>oms_agent / Container Insights</dt><dd>Diagnostic settings to Log Analytics — currently nothing captures control-plane or pod logs centrally.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Resilience</p>
+          <dl class="items">
+            <div class="item"><dt>zones</dt><dd>Spread the node pool across availability zones.</dd></div>
+            <div class="item"><dt>automatic_channel_upgrade</dt><dd>Patch/node-image cadence, paired with a maintenance window.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Security</p>
+          <dl class="items">
+            <div class="item"><dt>azurepolicy add-on</dt><dd>Gatekeeper-based admission policies (Azure Policy for AKS) — enforced cluster-wide, not just per-namespace.</dd></div>
+            <div class="item"><dt>Defender for Containers</dt><dd>Image scanning at pull time plus runtime threat detection.</dd></div>
+            <div class="item"><dt>disk_encryption_set_id</dt><dd>Customer-managed keys for node OS/data disk encryption, instead of the platform-managed default.</dd></div>
+          </dl>
+        </div>
+      </div>
+
+      <div class="phase">
+        <h3 class="phase-title">Deploying the app onto it</h3>
+
+        <div class="group">
+          <p class="cat">Identity &amp; secrets</p>
+          <dl class="items">
+            <div class="item"><dt>SecretProviderClass</dt><dd>Key Vault CSI driver, mounting secrets directly instead of passing them through <code>helm --set</code>.</dd></div>
+            <div class="item"><dt>serviceAccountName</dt><dd>A minimal, dedicated account per tier; <code>automountServiceAccountToken: false</code> where the API is never called.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Networking</p>
+          <dl class="items">
+            <div class="item"><dt>NetworkPolicy per tier</dt><dd>Frontend public on 80, backend only from frontend, database only from backend — see <code>docs/network-policy.md</code>. Needs the <code>network_policy</code> engine above to actually enforce.</dd></div>
+            <div class="item"><dt>Ingress + cert-manager</dt><dd>Replaces the frontend's bare <code>LoadBalancer</code> Service with a real hostname and managed TLS.</dd></div>
+            <div class="item"><dt>hostAliases</dt><dd>Manual DNS override on a pod — rarely needed, but worth knowing about if a service must resolve a name outside cluster DNS.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Security</p>
+          <dl class="items">
+            <div class="item"><dt>securityContext</dt><dd>Non-root user, read-only root filesystem, dropped capabilities — none of the three Deployments set this today.</dd></div>
+            <div class="item"><dt>ResourceQuota / LimitRange</dt><dd>Namespace-wide caps so one bad <code>--set</code> can't request more than a node has.</dd></div>
+            <div class="item"><dt>ephemeral-storage limit</dt><dd>Nothing today caps how much a pod can write to its writable layer.</dd></div>
+            <div class="item"><dt>emptyDir for /tmp</dt><dd>Pairs with <code>readOnlyRootFilesystem</code> — nginx and the JVM both need somewhere writable, just not the root filesystem.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Scheduling</p>
+          <dl class="items">
+            <div class="item"><dt>nodeSelector / tolerations</dt><dd>Pin a component to a specific node pool — e.g. a dedicated pool for the database.</dd></div>
+            <div class="item"><dt>podAntiAffinity</dt><dd>Keeps replicas of the same service off the same node.</dd></div>
+            <div class="item"><dt>priorityClassName</dt><dd>Protects a critical pod (the database) from being the one evicted under node pressure.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Lifecycle</p>
+          <dl class="items">
+            <div class="item"><dt>terminationGracePeriodSeconds + preStop</dt><dd>Lets the backend finish in-flight requests before the pod is killed.</dd></div>
+            <div class="item"><dt>startupProbe</dt><dd>Fits a slow-starting JVM better than guessing <code>initialDelaySeconds</code> on the readiness probe.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Scaling &amp; resilience</p>
+          <dl class="items">
+            <div class="item"><dt>HorizontalPodAutoscaler</dt><dd>Replaces the static <code>replicaCount</code>.</dd></div>
+            <div class="item"><dt>PodDisruptionBudget</dt><dd><code>minAvailable: 1</code>, so a node drain can't take out every backend replica at once.</dd></div>
+            <div class="item"><dt>topologySpreadConstraints</dt><dd>Spreads replicas across nodes instead of letting the scheduler stack them.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Observability</p>
+          <dl class="items">
+            <div class="item"><dt>prometheus.io/scrape annotations</dt><dd>Or a <code>ServiceMonitor</code>, if using the Prometheus Operator — ties into the actuator/Micrometer work already on <code>feature/managed-db</code>.</dd></div>
+            <div class="item"><dt>downward API env vars</dt><dd><code>fieldRef: metadata.name</code> / <code>status.podIP</code>, for structured logs that can be traced back to a pod.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Deployment mechanics</p>
+          <dl class="items">
+            <div class="item"><dt>image digest pinning</dt><dd><code>image@sha256:...</code> instead of a mutable tag like <code>latest</code>.</dd></div>
+            <div class="item"><dt>imagePullPolicy: Always</dt><dd>Specifically where a mutable tag is still in use — <code>IfNotPresent</code> on <code>latest</code> can keep serving a stale cached image.</dd></div>
+            <div class="item"><dt>maxSurge / maxUnavailable</dt><dd>Tunes the rolling update instead of the chart defaults.</dd></div>
+            <div class="item"><dt>initContainers</dt><dd>A wait-for-Postgres check, or a dedicated schema-migration step, ahead of the main container starting.</dd></div>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <!-- App Service -->
+    <section class="target" style="--accent:var(--appsvc); --accent-soft:var(--appsvc-soft)">
+      <header class="target-head">
+        <span class="target-kind">PaaS</span>
+        <h2>App Service</h2>
+      </header>
+
+      <div class="phase">
+        <h3 class="phase-title">Provisioning the plan &amp; web apps</h3>
+
+        <div class="group">
+          <p class="cat">Networking</p>
+          <dl class="items">
+            <div class="item"><dt>vnet_integration</dt><dd>Routes the web app's outbound traffic through your VNet — needed to reach a database on a private endpoint.</dd></div>
+            <div class="item"><dt>ip_restriction</dt><dd>Access-restriction rules on the app, instead of a fully public endpoint.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Identity</p>
+          <dl class="items">
+            <div class="item"><dt>identity { type = "SystemAssigned" }</dt><dd>Lets the app authenticate to Key Vault without a client secret.</dd></div>
+            <div class="item"><dt>auth_settings_v2</dt><dd>Easy Auth — Azure AD sign-in enforced in front of the app itself.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Scaling</p>
+          <dl class="items">
+            <div class="item"><dt>autoscale_setting</dt><dd>CPU/memory or schedule-based rules on the Plan.</dd></div>
+            <div class="item"><dt>Premium v3 tier</dt><dd>Needed for zone-redundant deployment.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Observability &amp; resilience</p>
+          <dl class="items">
+            <div class="item"><dt>Application Insights</dt><dd>Linked at creation, rather than added later by hand.</dd></div>
+            <div class="item"><dt>deployment slots</dt><dd>A staging slot for validation and slot-swap releases.</dd></div>
+            <div class="item"><dt>backup block</dt><dd>Scheduled app + database backup to storage.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Security</p>
+          <dl class="items">
+            <div class="item"><dt>minimum_tls_version</dt><dd>Pin to 1.2, and disable FTP/basic auth publishing credentials.</dd></div>
+          </dl>
+        </div>
+      </div>
+
+      <div class="phase">
+        <h3 class="phase-title">Deploying the app onto it</h3>
+
+        <div class="group">
+          <p class="cat">Identity &amp; secrets</p>
+          <dl class="items">
+            <div class="item"><dt>@Microsoft.KeyVault(...)</dt><dd>App settings resolved as Key Vault references, backed by the managed identity above.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Networking</p>
+          <dl class="items">
+            <div class="item"><dt>custom domain + managed cert</dt><dd>Rather than the default <code>*.azurewebsites.net</code> hostname.</dd></div>
+            <div class="item"><dt>https_only</dt><dd>Enforces the HTTP→HTTPS redirect.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Scaling &amp; resilience</p>
+          <dl class="items">
+            <div class="item"><dt>health_check_path</dt><dd>Used both for load-balancing between instances and for auto-heal.</dd></div>
+            <div class="item"><dt>always_on</dt><dd>Stops the app unloading after idle, which otherwise shows up as a slow first request.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Deployment mechanics</p>
+          <dl class="items">
+            <div class="item"><dt>slot swap</dt><dd>Blue/green release instead of deploying straight to production.</dd></div>
+            <div class="item"><dt>startup command</dt><dd>Overrides the container entrypoint per app setting, without rebuilding the image.</dd></div>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <!-- VM -->
+    <section class="target" style="--accent:var(--vm); --accent-soft:var(--vm-soft)">
+      <header class="target-head">
+        <span class="target-kind">IaaS</span>
+        <h2>Virtual machine</h2>
+      </header>
+
+      <div class="phase">
+        <h3 class="phase-title">Provisioning the VM</h3>
+
+        <div class="group">
+          <p class="cat">Networking</p>
+          <dl class="items">
+            <div class="item"><dt>network_security_group</dt><dd>Rules scoped to the exact ports the app needs — not a broad allow.</dd></div>
+            <div class="item"><dt>Azure Bastion</dt><dd>Replaces a public SSH/RDP endpoint entirely.</dd></div>
+            <div class="item"><dt>Just-In-Time access</dt><dd>Opens the management port only for a requested window, via Defender for Cloud.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Identity</p>
+          <dl class="items">
+            <div class="item"><dt>identity { type = "SystemAssigned" }</dt><dd>Used to pull secrets at boot instead of baking them into the image.</dd></div>
+            <div class="item"><dt>disable_password_authentication</dt><dd>SSH key only.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Scaling &amp; resilience</p>
+          <dl class="items">
+            <div class="item"><dt>Virtual Machine Scale Set</dt><dd>Instead of a single VM — this is what actually makes autoscaling and rolling patching possible.</dd></div>
+            <div class="item"><dt>availability zone</dt><dd>Or an availability set if zones aren't an option in the region.</dd></div>
+            <div class="item"><dt>Azure Update Manager</dt><dd>Scheduled patching instead of manual <code>apt/yum upgrade</code>.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Observability &amp; security</p>
+          <dl class="items">
+            <div class="item"><dt>boot_diagnostics</dt><dd>Serial console output, useful when the app never comes up.</dd></div>
+            <div class="item"><dt>Azure Monitor Agent + DCR</dt><dd>Ships OS and app logs to Log Analytics.</dd></div>
+            <div class="item"><dt>disk encryption</dt><dd>Azure Disk Encryption on the OS and data disks.</dd></div>
+          </dl>
+        </div>
+      </div>
+
+      <div class="phase">
+        <h3 class="phase-title">Deploying the app onto it</h3>
+
+        <div class="group">
+          <p class="cat">Identity &amp; secrets</p>
+          <dl class="items">
+            <div class="item"><dt>managed-identity Key Vault pull</dt><dd>Fetched at boot via cloud-init, never stored in the VM image.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Networking</p>
+          <dl class="items">
+            <div class="item"><dt>nginx reverse proxy</dt><dd>Sits in front of the app; the NSG allows inbound only to the proxy, not the app port directly.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Security</p>
+          <dl class="items">
+            <div class="item"><dt>dedicated system user</dt><dd>The app runs as its own non-root account, never as root.</dd></div>
+            <div class="item"><dt>systemd sandboxing</dt><dd><code>ProtectSystem=strict</code>, <code>NoNewPrivileges=true</code> on the unit file.</dd></div>
+          </dl>
+        </div>
+
+        <div class="group">
+          <p class="cat">Deployment mechanics</p>
+          <dl class="items">
+            <div class="item"><dt>immutable image (Packer)</dt><dd>Versus config-management push — decide once, since it changes how every future release ships.</dd></div>
+            <div class="item"><dt>rolling instance refresh</dt><dd>Across the scale set, so a bad release doesn't hit every instance at once.</dd></div>
+            <div class="item"><dt>health-checked load balancer</dt><dd>App-level health endpoint the LB polls before sending traffic to an instance.</dd></div>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <footer class="page-foot">fitcart · infrastructure reference · 2026-09-22</footer>
+</div>
