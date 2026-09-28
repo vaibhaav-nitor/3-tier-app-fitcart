@@ -55,13 +55,13 @@ variable "node_vm_size" {
 variable "node_count" {
   description = "Number of nodes in the default pool."
   type        = number
-  default     = 2
+  default     = "4"
 }
 
 variable "os_disk_size_gb" {
   description = "OS disk size per node."
   type        = number
-  default     = 32
+  default     = "64"
 }
 
 variable "service_cidr" {
