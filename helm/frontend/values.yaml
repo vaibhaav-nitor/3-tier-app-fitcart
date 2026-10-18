@@ -1,35 +1,16 @@
-replicaCount: 1
-
+replicaCount: 3
 image:
-  # Overwritten at deploy time with the ACR login server, e.g.
-  # acrfitcartdev123456.azurecr.io/fitcart-frontend
   repository: fitcart-frontend
-  tag: latest
+  tag: v2.0.1
   pullPolicy: IfNotPresent
-
-# Empty when the AKS kubelet identity holds AcrPull on the registry, which is the
-# normal case and needs no credential in the cluster at all. Set to a
-# docker-registry Secret name only where that role assignment could not be
-# created; the deploy workflow creates the Secret and passes the name here.
-imagePullSecret: ""
-
-# Fixed Service name, kept for symmetry with the backend chart and because the
-# backend's FRONTEND_ORIGIN CORS value points at http://frontend:80.
+imagePullSecret: ''
 serviceName: frontend
-
 service:
-  # LoadBalancer gives the cluster a public IP — this is the app's entry point.
   type: LoadBalancer
   port: 80
-
-# Matches EXPOSE 80 in frontend/Dockerfile.
 containerPort: 80
-
 runtimeConfig:
-  # Default for local rendering. CI overwrites it from Azure Key Vault secret
-  # `version-v1`.
-  heroHighlightText: "Progress."
-
+  heroHighlightText: Progress.
 resources:
   requests:
     cpu: 50m
