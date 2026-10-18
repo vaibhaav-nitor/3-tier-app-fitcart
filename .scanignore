@@ -1,0 +1,13 @@
+.git
+.next
+.terraform
+.venv
+__pycache__
+build
+coverage
+dist
+logs
+node_modules
+tmp
+uploads
+venv
