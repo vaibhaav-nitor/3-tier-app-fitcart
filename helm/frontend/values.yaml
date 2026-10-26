@@ -1,7 +1,9 @@
 replicaCount: 1
 
 image:
-  repository: acrfitcartdevnmv9l9.azurecr.io/fitcart-frontend
+  # Overwritten at deploy time with the ACR login server, e.g.
+  # acrfitcartdev123456.azurecr.io/fitcart-frontend
+  repository: fitcart-frontend
   tag: latest
   pullPolicy: IfNotPresent
 

@@ -3,6 +3,8 @@ image:
   tag: "14"
   pullPolicy: IfNotPresent
 
+imagePullSecret: ""
+
 # Fixed Service name. The backend resolves the database via DB_HOST=postgres,
 # so this must not be templated off the release name.
 serviceName: postgres
