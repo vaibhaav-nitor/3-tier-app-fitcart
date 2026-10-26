@@ -13,8 +13,8 @@ db:
   host: postgres
   port: 5432
   name: backenddb
-  user: ''
-  password: ''
+  user: 'admin'
+  password: 'password@123'
 frontendOrigin: http://frontend:80
 resources:
   requests:
