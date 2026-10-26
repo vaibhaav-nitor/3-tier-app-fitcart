@@ -13,15 +13,16 @@ permissions:
   contents: read
 
 env:
-  # Repository variables, taken from `terraform output workflow_env`.
-  ACR_NAME: ${{ vars.ACR_NAME }}
-  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
-  AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
-  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-  KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+  ACR_NAME: acrfitcartdevnmv9l9
+  ACR_LOGIN_SERVER: acrfitcartdevnmv9l9.azurecr.io
+  AKS_CLUSTER_NAME: aks-fitcart-dev
+  AZURE_RESOURCE_GROUP: AZET-RG-Daas-Platform
+  KEY_VAULT_NAME: kv-fitcart-dev-nmv9l9
   IMAGE_NAME: fitcart-backend
   K8S_NAMESPACE: fitcart
   HELM_RELEASE: fitcart-backend
+  DB_USER: admin
+  DB_PASSWORD: password@123
 
 jobs:
   build:
@@ -113,18 +114,6 @@ jobs:
             --name "$AKS_CLUSTER_NAME" \
             --overwrite-existing
 
-      # Masks are registered BEFORE the values are used anywhere, so a failing
-      # helm command cannot echo the password into the log.
-      - name: Read database credentials from Key Vault
-        run: |
-          set -euo pipefail
-          db_user=$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name postgres-user --query value -o tsv)
-          db_password=$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name postgres-password --query value -o tsv)
-          echo "::add-mask::$db_user"
-          echo "::add-mask::$db_password"
-          echo "DB_USER=$db_user" >> "$GITHUB_ENV"
-          echo "DB_PASSWORD=$db_password" >> "$GITHUB_ENV"
-
       # Self-detecting: the ACR admin user is enabled by Terraform only when no
       # AcrPull assignment exists. Flipping that toggle needs no change here.
       - name: Configure image pull secret
@@ -154,10 +143,7 @@ jobs:
         uses: azure/setup-helm@v4
 
       - name: Helm lint
-        run: |
-          helm lint ./helm/backend \
-            --set db.user=placeholder \
-            --set db.password=placeholder
+        run: helm lint ./helm/backend
 
       - name: Helm upgrade
         run: |

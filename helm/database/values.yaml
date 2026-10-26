@@ -11,11 +11,9 @@ database:
   name: backenddb
   port: 5432
 
-# Empty by design. Both values are injected at deploy time from Azure Key Vault
-# (secrets `postgres-user` and `postgres-password`). Never commit real values here.
 auth:
-  username: ""
-  password: ""
+  username: "admin"
+  password: "password@123"
 
 storage:
   size: 5Gi

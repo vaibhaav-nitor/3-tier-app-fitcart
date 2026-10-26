@@ -13,12 +13,11 @@ permissions:
   contents: read
 
 env:
-  # Repository variables, taken from `terraform output workflow_env`.
-  ACR_NAME: ${{ vars.ACR_NAME }}
-  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
-  AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
-  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-  KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+  ACR_NAME: acrfitcartdevnmv9l9
+  ACR_LOGIN_SERVER: acrfitcartdevnmv9l9.azurecr.io
+  AKS_CLUSTER_NAME: aks-fitcart-dev
+  AZURE_RESOURCE_GROUP: AZET-RG-Daas-Platform
+  KEY_VAULT_NAME: kv-fitcart-dev-nmv9l9
   IMAGE_NAME: fitcart-frontend
   K8S_NAMESPACE: fitcart
   HELM_RELEASE: fitcart-frontend
@@ -108,21 +107,6 @@ jobs:
             --name "$AKS_CLUSTER_NAME" \
             --overwrite-existing
 
-      - name: Read frontend runtime config from Key Vault
-        run: |
-          set -euo pipefail
-          hero_highlight_text=$(az keyvault secret show \
-            --vault-name "$KEY_VAULT_NAME" \
-            --name version-v1 \
-            --query value -o tsv 2>/dev/null || true)
-
-          if [ -z "$hero_highlight_text" ]; then
-            hero_highlight_text="Progress."
-            echo "Key Vault secret version-v1 not found. Using default frontend hero text."
-          fi
-
-          echo "HERO_HIGHLIGHT_TEXT=$hero_highlight_text" >> "$GITHUB_ENV"
-
       # Self-detecting: the ACR admin user is enabled by Terraform only when no
       # AcrPull assignment exists. Flipping that toggle needs no change here.
       - name: Configure image pull secret
@@ -163,8 +147,7 @@ jobs:
             --timeout 10m \
             --set image.repository="${ACR_LOGIN_SERVER}/${IMAGE_NAME}" \
             --set image.tag="${{ needs.build.outputs.image_tag }}" \
-            --set imagePullSecret="$IMAGE_PULL_SECRET" \
-            --set runtimeConfig.heroHighlightText="$HERO_HIGHLIGHT_TEXT"
+            --set imagePullSecret="$IMAGE_PULL_SECRET"
 
       - name: Report application URL
         if: always()

@@ -85,21 +85,6 @@ jobs:
             --name "$AKS_CLUSTER_NAME" \
             --overwrite-existing
 
-      - name: Read frontend runtime config from Key Vault
-        run: |
-          set -euo pipefail
-          hero_highlight_text=$(az keyvault secret show \
-            --vault-name "$KEY_VAULT_NAME" \
-            --name version-v1 \
-            --query value -o tsv 2>/dev/null || true)
-
-          if [ -z "$hero_highlight_text" ]; then
-            hero_highlight_text="Progress."
-            echo "Key Vault secret version-v1 not found. Using default frontend hero text."
-          fi
-
-          echo "HERO_HIGHLIGHT_TEXT=$hero_highlight_text" >> "$GITHUB_ENV"
-
       - name: Configure image pull secret
         run: |
           set -euo pipefail
@@ -135,8 +120,7 @@ jobs:
             --timeout 10m \
             --set image.repository="${ACR_LOGIN_SERVER}/${IMAGE_NAME}" \
             --set image.tag="${{ needs.build.outputs.image_tag }}" \
-            --set imagePullSecret="$IMAGE_PULL_SECRET" \
-            --set runtimeConfig.heroHighlightText="$HERO_HIGHLIGHT_TEXT"
+            --set imagePullSecret="$IMAGE_PULL_SECRET"
 
       - name: Report application URL
         if: always()

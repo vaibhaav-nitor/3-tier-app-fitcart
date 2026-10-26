@@ -15,10 +15,12 @@ permissions:
 
 env:
   AKS_CLUSTER_NAME: aks-fitcart-dev
-  AZURE_RESOURCE_GROUP: aks-fitcart-dev
+  AZURE_RESOURCE_GROUP: AZET-RG-Daas-Platform
   KEY_VAULT_NAME: kv-fitcart-dev-nmv9l9
   K8S_NAMESPACE: fitcart
   HELM_RELEASE: fitcart-database
+  DB_USER: admin
+  DB_PASSWORD: password@123
 
 jobs:
   deploy:
@@ -48,26 +50,11 @@ jobs:
             --name "$AKS_CLUSTER_NAME" \
             --overwrite-existing
 
-      # Same two vault entries the backend reads. If these ever diverge the
-      # backend fails JDBC authentication, so both workflows read the same names.
-      - name: Read database credentials from Key Vault
-        run: |
-          set -euo pipefail
-          db_user=$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name postgres-user --query value -o tsv)
-          db_password=$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name postgres-password --query value -o tsv)
-          echo "::add-mask::$db_user"
-          echo "::add-mask::$db_password"
-          echo "DB_USER=$db_user" >> "$GITHUB_ENV"
-          echo "DB_PASSWORD=$db_password" >> "$GITHUB_ENV"
-
       - name: Install Helm
         uses: azure/setup-helm@v4
 
       - name: Helm lint
-        run: |
-          helm lint ./helm/database \
-            --set auth.username=placeholder \
-            --set auth.password=placeholder
+        run: helm lint ./helm/database
 
       - name: Helm upgrade
         run: |

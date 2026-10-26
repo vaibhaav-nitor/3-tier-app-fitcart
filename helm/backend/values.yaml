@@ -1,9 +1,9 @@
 replicaCount: 2
 image:
-  repository: fitcart-backend
-  tag: v2.0.0
+  repository: acrfitcartdevnmv9l9.azurecr.io/fitcart-backend
+  tag: latest
   pullPolicy: IfNotPresent
-imagePullSecret: ''
+imagePullSecret: 'acr-pull-secret'
 serviceName: backend
 service:
   type: ClusterIP
