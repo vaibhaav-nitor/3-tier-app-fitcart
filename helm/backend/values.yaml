@@ -1,6 +1,6 @@
 replicaCount: 2
 image:
-  repository: fitcart-backend
+  repository: acrfitcartdevnmv9l9.azurecr.io/fitcart-backend
   tag: v2.0.0
   pullPolicy: IfNotPresent
 imagePullSecret: ''

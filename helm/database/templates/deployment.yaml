@@ -22,6 +22,11 @@ spec:
         # Restart the pod when the credentials change.
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
+      {{- if .Values.imagePullSecret }}
+      # Present only where the kubelet identity lacks AcrPull on the registry.
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret }}
+      {{- end }}
       containers:
         - name: postgres
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"

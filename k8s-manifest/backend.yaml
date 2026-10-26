@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: backend
-        image: your-registry/backend:latest
+        image: acrfitcartdevnmv9l9.azurecr.io/fitcart-backend:latest
         ports:
         - containerPort: 8080
         env:

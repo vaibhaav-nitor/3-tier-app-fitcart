@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: your-registry/react-frontend:latest
+        image: acrfitcartdevnmv9l9.azurecr.io/fitcart-frontend:latest
         ports:
         - containerPort: 80
 ---

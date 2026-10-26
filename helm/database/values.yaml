@@ -1,7 +1,9 @@
 image:
-  repository: postgres
+  repository: acrfitcartdevnmv9l9.azurecr.io/postgres
   tag: "14"
   pullPolicy: IfNotPresent
+
+imagePullSecret: ""
 
 # Fixed Service name. The backend resolves the database via DB_HOST=postgres,
 # so this must not be templated off the release name.
