@@ -14,9 +14,9 @@ permissions:
   contents: read
 
 env:
-  AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
-  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-  KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+  AKS_CLUSTER_NAME: aks-fitcart-dev
+  AZURE_RESOURCE_GROUP: aks-fitcart-dev
+  KEY_VAULT_NAME: kv-fitcart-dev-nmv9l9
   K8S_NAMESPACE: fitcart
   HELM_RELEASE: fitcart-database
 
