@@ -1,6 +1,0 @@
-apiVersion: v2
-name: fitcart-database
-description: PostgreSQL data tier for FitCart, running in-cluster on a managed-csi PVC
-type: application
-version: 0.1.0
-appVersion: "14"
